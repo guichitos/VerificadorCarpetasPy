@@ -242,8 +242,10 @@ def _show_results(
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
 
-    _populate_tree(old_tree, filtered_old, old_status)
-    _populate_tree(new_tree, filtered_new, new_status)
+    if filtered_old:
+        _populate_tree(old_tree, filtered_old, old_status)
+    if filtered_new:
+        _populate_tree(new_tree, filtered_new, new_status)
 
     window.grab_set()
 
