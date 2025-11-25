@@ -9,17 +9,45 @@ from tkinter import filedialog, messagebox
 OUTPUT_FILENAME = "estructura_carpetas.json"
 
 
-def GetTree(TargetPath: str) -> dict:
+def GetTree(TargetPath: str, RootPath: str, DriveId: str | None) -> dict:
     """Build a dictionary representing the directory tree."""
 
     NodeName = os.path.basename(TargetPath) or TargetPath
+    RelativePath = os.path.relpath(TargetPath, RootPath)
+    if RelativePath == ".":
+        RelativePath = ""
+
+    GraphPath = None
+    if DriveId is not None:
+        NormalizedRelative = RelativePath.replace(os.sep, "/")
+        GraphPath = f"drives/{DriveId}/root:/{NormalizedRelative}" if NormalizedRelative else f"drives/{DriveId}/root"
+
     if os.path.isdir(TargetPath):
         Children = [
-            GetTree(os.path.join(TargetPath, EntryName))
+            GetTree(os.path.join(TargetPath, EntryName), RootPath, DriveId)
             for EntryName in sorted(os.listdir(TargetPath))
         ]
-        return {"name": NodeName, "type": "folder", "children": Children}
-    return {"name": NodeName, "type": "file"}
+        return {
+            "name": NodeName,
+            "type": "folder",
+            "graph_path": GraphPath,
+            "children": Children,
+        }
+    return {"name": NodeName, "type": "file", "graph_path": GraphPath}
+
+
+def _ParseIniForDriveId(FileContent: str) -> str | None:
+    """Extract the drive ID from OneDrive policy content."""
+
+    CleanContent = FileContent.replace("\x00", "")
+    IniKeys = ("graphdriveid", "cid", "usercid")
+    for Line in CleanContent.splitlines():
+        NormalizedLine = Line.strip()
+        for Key in IniKeys:
+            KeyPrefix = f"{Key}="
+            if NormalizedLine.lower().startswith(KeyPrefix):
+                return NormalizedLine.split("=", 1)[1].strip()
+    return None
 
 
 def GetOneDriveId(BasePath: str) -> str | None:
@@ -53,7 +81,6 @@ def GetOneDriveId(BasePath: str) -> str | None:
             ]
         )
 
-    IniKeys = ("cid", "usercid")
     for ConfigPath in CandidatePaths:
         if not os.path.isfile(ConfigPath):
             continue
@@ -66,12 +93,9 @@ def GetOneDriveId(BasePath: str) -> str | None:
         if not FileContent:
             continue
 
-        for Line in FileContent.splitlines():
-            NormalizedLine = Line.strip()
-            for Key in IniKeys:
-                KeyPrefix = f"{Key}="
-                if NormalizedLine.lower().startswith(KeyPrefix):
-                    return NormalizedLine.split("=", 1)[1].strip()
+        ParsedDriveId = _ParseIniForDriveId(FileContent)
+        if ParsedDriveId:
+            return ParsedDriveId
 
         if FileContent:
             return FileContent
@@ -94,7 +118,7 @@ def BuildJson(SelectedPath: str) -> dict:
         "computer": platform.node(),
         "selected_path": SelectedPath,
         "onedrive_id": OneDriveId,
-        "structure": GetTree(SelectedPath),
+        "structure": GetTree(SelectedPath, SelectedPath, OneDriveId),
     }
 
 
