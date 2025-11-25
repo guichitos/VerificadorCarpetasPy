@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import platform
@@ -13,15 +14,44 @@ def obtener_arbol(ruta: str) -> dict:
     """Genera un diccionario con la estructura de carpetas y archivos."""
     nombre = os.path.basename(ruta) or ruta
     if os.path.isdir(ruta):
-        hijos = [obtener_arbol(os.path.join(ruta, elemento)) for elemento in os.listdir(ruta)]
+        hijos = [
+            obtener_arbol(os.path.join(ruta, elemento))
+            for elemento in sorted(os.listdir(ruta))
+        ]
         return {"nombre": nombre, "tipo": "carpeta", "hijos": hijos}
     return {"nombre": nombre, "tipo": "archivo"}
+
+
+def calcular_huella_carpeta(ruta: str) -> str:
+    """Calcula una huella SHA-256 basada en el contenido y estructura de la carpeta."""
+
+    hash_global = hashlib.sha256()
+
+    for raiz, directorios, archivos in os.walk(ruta):
+        directorios.sort()
+        archivos.sort()
+
+        for carpeta in directorios:
+            ruta_relativa = os.path.relpath(os.path.join(raiz, carpeta), ruta)
+            hash_global.update(f"DIR:{ruta_relativa}".encode("utf-8"))
+
+        for archivo in archivos:
+            ruta_archivo = os.path.join(raiz, archivo)
+            ruta_relativa = os.path.relpath(ruta_archivo, ruta)
+            hash_global.update(f"FILE:{ruta_relativa}".encode("utf-8"))
+
+            with open(ruta_archivo, "rb") as f:
+                for bloque in iter(lambda: f.read(8192), b""):
+                    hash_global.update(bloque)
+
+    return hash_global.hexdigest()
 
 
 def generar_json(ruta_seleccionada: str) -> dict:
     """Arma la estructura JSON con los metadatos solicitados."""
     usuario = getpass.getuser()
     carpeta_local = os.path.expanduser("~")
+    huella = calcular_huella_carpeta(ruta_seleccionada)
 
     return {
         "usuario": {
@@ -30,6 +60,7 @@ def generar_json(ruta_seleccionada: str) -> dict:
         },
         "computadora": platform.node(),
         "ruta_seleccionada": ruta_seleccionada,
+        "huella_carpeta": huella,
         "estructura": obtener_arbol(ruta_seleccionada),
     }
 
