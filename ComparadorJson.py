@@ -128,6 +128,35 @@ def _build_status_maps(results: dict) -> tuple[dict[str, str], dict[str, str]]:
     return old_status, new_status
 
 
+def _filter_structure_for_changes(
+    node: JsonNode, status_map: dict[str, str], base_path: str = ""
+) -> JsonNode | None:
+    """Return a pared-down copy of the tree keeping only nodes with changes.
+
+    Ancestors of changed nodes are kept to preserve the folder context.
+    """
+
+    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    status = status_map.get(current_path, "Sin cambios")
+
+    children: list[JsonNode] = []
+    if node.get("type") == "folder":
+        for child in node.get("children", []):
+            filtered_child = _filter_structure_for_changes(child, status_map, current_path)
+            if filtered_child:
+                children.append(filtered_child)
+
+    has_change = status != "Sin cambios"
+    if not has_change and not children:
+        return None
+
+    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node.get("type", "")}
+    if children:
+        filtered_node["children"] = children
+
+    return filtered_node
+
+
 def _populate_tree(
     tree: ttk.Treeview,
     node: JsonNode,
@@ -135,6 +164,9 @@ def _populate_tree(
     parent: str = "",
     base_path: str = "",
 ) -> None:
+    if not node:
+        return
+
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
@@ -207,8 +239,11 @@ def _show_results(
     old_scroll.grid(row=0, column=1, sticky="ns")
     new_scroll.grid(row=0, column=1, sticky="ns")
 
-    _populate_tree(old_tree, old_structure, old_status)
-    _populate_tree(new_tree, new_structure, new_status)
+    filtered_old = _filter_structure_for_changes(old_structure, old_status)
+    filtered_new = _filter_structure_for_changes(new_structure, new_status)
+
+    _populate_tree(old_tree, filtered_old, old_status)
+    _populate_tree(new_tree, filtered_new, new_status)
 
     window.grab_set()
 
