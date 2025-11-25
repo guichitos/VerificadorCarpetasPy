@@ -1,7 +1,7 @@
 import json
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
 
 
@@ -47,10 +47,18 @@ def _compare_structures(old_structure: JsonNode, new_structure: JsonNode) -> dic
     removed = sorted(old_paths - new_paths)
     added = sorted(new_paths - old_paths)
 
+    rename_old_paths = {old for old, _, _ in renames}
+    rename_new_paths = {new for _, new, _ in renames}
+
+    removed = [entry for entry in removed if entry[0] not in rename_old_paths]
+    added = [entry for entry in added if entry[0] not in rename_new_paths]
+
     return {
         "added": added,
         "removed": removed,
         "renamed": renames,
+        "old_nodes": old_nodes,
+        "new_nodes": new_nodes,
     }
 
 
@@ -78,6 +86,133 @@ def _format_results(results: dict) -> str:
     return "\n".join(messages)
 
 
+def _status_to_tag(status: str) -> str:
+    if status.startswith("Nuevo"):
+        return "nuevo"
+    if status.startswith("Eliminado"):
+        return "eliminado"
+    if status.startswith("Renombrado"):
+        return "renombrado"
+    return "normal"
+
+
+def _build_status_maps(results: dict) -> tuple[dict[str, str], dict[str, str]]:
+    old_index = {path: (ntype, graph) for path, ntype, graph in results["old_nodes"]}
+    new_index = {path: (ntype, graph) for path, ntype, graph in results["new_nodes"]}
+
+    removed_paths = {path for path, _ in results["removed"]}
+    added_paths = {path for path, _ in results["added"]}
+
+    rename_old_to_new = {old: new for old, new, _ in results["renamed"]}
+    rename_new_to_old = {new: old for old, new, _ in results["renamed"]}
+
+    old_status: dict[str, str] = {}
+    new_status: dict[str, str] = {}
+
+    for path in old_index:
+        if path in rename_old_to_new:
+            old_status[path] = f"Renombrado a {rename_old_to_new[path]}"
+        elif path in removed_paths:
+            old_status[path] = "Eliminado"
+        else:
+            old_status[path] = "Sin cambios"
+
+    for path in new_index:
+        if path in rename_new_to_old:
+            new_status[path] = f"Renombrado desde {rename_new_to_old[path]}"
+        elif path in added_paths:
+            new_status[path] = "Nuevo"
+        else:
+            new_status[path] = "Sin cambios"
+
+    return old_status, new_status
+
+
+def _populate_tree(
+    tree: ttk.Treeview,
+    node: JsonNode,
+    status_map: dict[str, str],
+    parent: str = "",
+    base_path: str = "",
+) -> None:
+    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    status = status_map.get(current_path, "Sin cambios")
+    node_type = node.get("type", "")
+    tag = _status_to_tag(status)
+
+    item_id = tree.insert(
+        parent,
+        "end",
+        text=node.get("name", ""),
+        values=(status, node_type),
+        tags=(tag,),
+    )
+
+    if node.get("type") == "folder":
+        for child in node.get("children", []):
+            _populate_tree(tree, child, status_map, item_id, current_path)
+
+
+def _show_results(
+    old_structure: JsonNode,
+    new_structure: JsonNode,
+    results: dict,
+    old_status: dict[str, str],
+    new_status: dict[str, str],
+) -> None:
+    window = tk.Toplevel()
+    window.title("Resultado de la comparación")
+    window.geometry("1000x600")
+
+    window.columnconfigure(0, weight=1, uniform="col")
+    window.columnconfigure(1, weight=1, uniform="col")
+    window.rowconfigure(1, weight=1)
+
+    summary = _format_results(results)
+    summary_label = tk.Label(window, text=summary, anchor="w", justify="left", padx=10, pady=10)
+    summary_label.grid(row=0, column=0, columnspan=2, sticky="we")
+
+    old_frame = ttk.LabelFrame(window, text="Estructura anterior")
+    old_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+    new_frame = ttk.LabelFrame(window, text="Estructura nueva")
+    new_frame.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+
+    for frame in (old_frame, new_frame):
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+
+    old_tree = ttk.Treeview(old_frame, columns=("Estado", "Tipo"), show="tree headings")
+    new_tree = ttk.Treeview(new_frame, columns=("Estado", "Tipo"), show="tree headings")
+
+    for tree in (old_tree, new_tree):
+        tree.heading("#0", text="Elemento")
+        tree.heading("Estado", text="Estado")
+        tree.heading("Tipo", text="Tipo")
+        tree.column("#0", width=320, stretch=True)
+        tree.column("Estado", width=200, anchor="center")
+        tree.column("Tipo", width=120, anchor="center")
+
+        tree.tag_configure("nuevo", foreground="#22863a")
+        tree.tag_configure("eliminado", foreground="#cb2431")
+        tree.tag_configure("renombrado", foreground="#b08800")
+        tree.tag_configure("normal", foreground="#24292e")
+
+    old_tree.grid(row=0, column=0, sticky="nsew")
+    new_tree.grid(row=0, column=0, sticky="nsew")
+
+    old_scroll = ttk.Scrollbar(old_frame, orient="vertical", command=old_tree.yview)
+    new_scroll = ttk.Scrollbar(new_frame, orient="vertical", command=new_tree.yview)
+    old_tree.configure(yscrollcommand=old_scroll.set)
+    new_tree.configure(yscrollcommand=new_scroll.set)
+    old_scroll.grid(row=0, column=1, sticky="ns")
+    new_scroll.grid(row=0, column=1, sticky="ns")
+
+    _populate_tree(old_tree, old_structure, old_status)
+    _populate_tree(new_tree, new_structure, new_status)
+
+    window.grab_set()
+
+
 def _select_file(prompt: str) -> str | None:
     return filedialog.askopenfilename(title=prompt, filetypes=[("JSON files", "*.json")])
 
@@ -99,8 +234,8 @@ def compare_json_files() -> None:
         return
 
     results = _compare_structures(old_structure, new_structure)
-    message = _format_results(results)
-    messagebox.showinfo("Resultado de la comparación", message)
+    old_status, new_status = _build_status_maps(results)
+    _show_results(old_structure, new_structure, results, old_status, new_status)
 
 
 def main() -> None:
