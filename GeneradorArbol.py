@@ -41,16 +41,40 @@ def GetOneDriveId(BasePath: str) -> str | None:
         os.path.join(BasePath, ".onedrive", "drive_id"),
     ]
 
+    LocalAppData = os.environ.get("LOCALAPPDATA")
+    if LocalAppData:
+        OneDriveSettings = os.path.join(
+            LocalAppData, "Microsoft", "OneDrive", "settings"
+        )
+        CandidatePaths.extend(
+            [
+                os.path.join(OneDriveSettings, "Business1", "ClientPolicy.ini"),
+                os.path.join(OneDriveSettings, "Personal", "ClientPolicy.ini"),
+            ]
+        )
+
+    IniKeys = ("cid", "usercid")
     for ConfigPath in CandidatePaths:
         if not os.path.isfile(ConfigPath):
             continue
         try:
             with open(ConfigPath, "r", encoding="utf-8") as FileHandle:
                 FileContent = FileHandle.read().strip()
-                if FileContent:
-                    return FileContent
         except OSError:
             continue
+
+        if not FileContent:
+            continue
+
+        for Line in FileContent.splitlines():
+            NormalizedLine = Line.strip()
+            for Key in IniKeys:
+                KeyPrefix = f"{Key}="
+                if NormalizedLine.lower().startswith(KeyPrefix):
+                    return NormalizedLine.split("=", 1)[1].strip()
+
+        if FileContent:
+            return FileContent
 
     return None
 
