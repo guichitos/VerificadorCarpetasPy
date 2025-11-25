@@ -212,32 +212,16 @@ def _show_results(
 
     window.columnconfigure(0, weight=1, uniform="col")
     window.columnconfigure(1, weight=1, uniform="col")
-    window.rowconfigure(1, weight=1)
+    window.rowconfigure(0, weight=1)
 
     previous_label = old_computer or "Desconocida"
     current_label = new_computer or "Desconocida"
     previous_path = old_path or "Ruta no disponible"
     current_path = new_path or "Ruta no disponible"
-    files_info = tk.Label(
-        window,
-        text=(
-            "Equipos comparados:\n"
-            f"  - Estructura anterior: {previous_label}\n"
-            f"    Ruta: {previous_path}\n"
-            f"  - Estructura nueva: {current_label}\n"
-            f"    Ruta: {current_path}"
-        ),
-        anchor="w",
-        justify="left",
-        padx=10,
-        pady=10,
-    )
-    files_info.grid(row=0, column=0, columnspan=2, sticky="we")
-
-    old_frame = ttk.LabelFrame(window, text="Estructura anterior")
-    old_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-    new_frame = ttk.LabelFrame(window, text="Estructura nueva")
-    new_frame.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+    old_frame = ttk.LabelFrame(window, text=f"{previous_label} - {previous_path}")
+    old_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+    new_frame = ttk.LabelFrame(window, text=f"{current_label} - {current_path}")
+    new_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
     for frame in (old_frame, new_frame):
         frame.rowconfigure(0, weight=1)
