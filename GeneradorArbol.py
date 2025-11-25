@@ -1,7 +1,7 @@
+import getpass
 import json
 import os
 import platform
-import getpass
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -9,125 +9,125 @@ from tkinter import filedialog, messagebox
 OUTPUT_FILENAME = "estructura_carpetas.json"
 
 
-def obtener_arbol(ruta: str) -> dict:
-    """Genera un diccionario con la estructura de carpetas y archivos."""
-    nombre = os.path.basename(ruta) or ruta
-    if os.path.isdir(ruta):
-        hijos = [
-            obtener_arbol(os.path.join(ruta, elemento))
-            for elemento in sorted(os.listdir(ruta))
+def GetTree(TargetPath: str) -> dict:
+    """Build a dictionary representing the directory tree."""
+
+    NodeName = os.path.basename(TargetPath) or TargetPath
+    if os.path.isdir(TargetPath):
+        Children = [
+            GetTree(os.path.join(TargetPath, EntryName))
+            for EntryName in sorted(os.listdir(TargetPath))
         ]
-        return {"nombre": nombre, "tipo": "carpeta", "hijos": hijos}
-    return {"nombre": nombre, "tipo": "archivo"}
+        return {"name": NodeName, "type": "folder", "children": Children}
+    return {"name": NodeName, "type": "file"}
 
 
-def obtener_id_onedrive(ruta_base: str) -> str | None:
-    """Intenta recuperar el ID interno de OneDrive.
+def GetOneDriveId(BasePath: str) -> str | None:
+    """Try to read the internal OneDrive ID from common locations."""
 
-    La implementación busca primero variables de entorno habituales y después
-    algunos archivos de configuración utilizados por clientes de OneDrive en
-    Linux. Si no encuentra nada devuelve ``None`` para avisar al usuario.
-    """
-
-    posibles_env = [
+    EnvironmentCandidates = [
         "ONEDRIVE_DRIVE_ID",
         "ONEDRIVE_ID",
         "ONEDRIVE_RESOURCE_ID",
     ]
-    for variable in posibles_env:
-        valor = os.environ.get(variable)
-        if valor:
-            return valor.strip()
+    for VariableName in EnvironmentCandidates:
+        VariableValue = os.environ.get(VariableName)
+        if VariableValue:
+            return VariableValue.strip()
 
-    posibles_rutas = [
+    CandidatePaths = [
         os.path.join(os.path.expanduser("~"), ".config", "onedrive", "drive_id"),
         os.path.join(os.path.expanduser("~"), ".config", "OneDrive", "drive_id"),
-        os.path.join(ruta_base, ".onedrive", "drive_id"),
+        os.path.join(BasePath, ".onedrive", "drive_id"),
     ]
 
-    for ruta_config in posibles_rutas:
-        if not os.path.isfile(ruta_config):
+    for ConfigPath in CandidatePaths:
+        if not os.path.isfile(ConfigPath):
             continue
         try:
-            with open(ruta_config, "r", encoding="utf-8") as archivo:
-                contenido = archivo.read().strip()
-                if contenido:
-                    return contenido
+            with open(ConfigPath, "r", encoding="utf-8") as FileHandle:
+                FileContent = FileHandle.read().strip()
+                if FileContent:
+                    return FileContent
         except OSError:
             continue
 
     return None
 
 
-def generar_json(ruta_seleccionada: str) -> dict:
-    """Arma la estructura JSON con los metadatos solicitados."""
-    usuario = getpass.getuser()
-    carpeta_local = os.path.expanduser("~")
-    onedrive_id = obtener_id_onedrive(ruta_seleccionada)
+def BuildJson(SelectedPath: str) -> dict:
+    """Assemble the JSON payload with metadata and structure."""
+
+    UserName = getpass.getuser()
+    LocalFolder = os.path.expanduser("~")
+    OneDriveId = GetOneDriveId(SelectedPath)
 
     return {
-        "usuario": {
-            "nombre": usuario,
-            "carpeta_local": carpeta_local,
+        "user": {
+            "name": UserName,
+            "local_folder": LocalFolder,
         },
-        "computadora": platform.node(),
-        "ruta_seleccionada": ruta_seleccionada,
-        "onedrive_id": onedrive_id,
-        "estructura": obtener_arbol(ruta_seleccionada),
+        "computer": platform.node(),
+        "selected_path": SelectedPath,
+        "onedrive_id": OneDriveId,
+        "structure": GetTree(SelectedPath),
     }
 
 
-def guardar_archivo(ruta_carpeta: str, contenido: dict) -> str:
-    """Guarda el JSON en un archivo de texto dentro de la carpeta seleccionada."""
-    destino = os.path.join(ruta_carpeta, OUTPUT_FILENAME)
-    with open(destino, "w", encoding="utf-8") as archivo:
-        json.dump(contenido, archivo, ensure_ascii=False, indent=2)
-    return destino
+def SaveFile(TargetFolder: str, Content: dict) -> str:
+    """Persist the JSON data inside the chosen folder."""
+
+    DestinationPath = os.path.join(TargetFolder, OUTPUT_FILENAME)
+    with open(DestinationPath, "w", encoding="utf-8") as FileHandle:
+        json.dump(Content, FileHandle, ensure_ascii=False, indent=2)
+    return DestinationPath
 
 
-def seleccionar_carpeta() -> None:
-    carpeta = filedialog.askdirectory(title="Selecciona una carpeta para generar el árbol")
-    if not carpeta:
+def SelectFolder() -> None:
+    SelectedFolder = filedialog.askdirectory(title="Select a folder to analyze")
+    if not SelectedFolder:
         return
 
-    datos = generar_json(carpeta)
-    ruta_archivo = guardar_archivo(carpeta, datos)
+    JsonData = BuildJson(SelectedFolder)
+    OutputPath = SaveFile(SelectedFolder, JsonData)
 
-    if datos.get("onedrive_id"):
-        mensaje_adicional = ""
+    if JsonData.get("onedrive_id"):
+        AdditionalMessage = ""
     else:
-        mensaje_adicional = (
-            "\nNo se encontró un ID interno de OneDrive. "
-            "Si usas OneDrive, inicia sesión en el cliente y vuelve a intentar."
+        AdditionalMessage = (
+            "\nNo OneDrive internal ID was found. "
+            "If you use OneDrive, sign in and try again."
         )
 
     messagebox.showinfo(
-        "Archivo creado",
-        f"Se generó el archivo '{OUTPUT_FILENAME}' en:\n{ruta_archivo}{mensaje_adicional}",
+        "File created",
+        f"The '{OUTPUT_FILENAME}' file was generated at:\n{OutputPath}{AdditionalMessage}",
     )
 
 
-def main() -> None:
-    raiz = tk.Tk()
-    raiz.title("Generador de árbol de carpetas")
-    raiz.geometry("400x200")
-    raiz.resizable(False, False)
+def Main() -> None:
+    RootWindow = tk.Tk()
+    RootWindow.title("Folder tree generator")
+    RootWindow.geometry("400x200")
+    RootWindow.resizable(False, False)
 
-    etiqueta = tk.Label(
-        raiz,
-        text="Selecciona una carpeta y se generará un archivo con la estructura en JSON.",
+    DescriptionLabel = tk.Label(
+        RootWindow,
+        text="Select a folder to generate a JSON file with its structure.",
         wraplength=360,
         justify="center",
         padx=20,
         pady=20,
     )
-    etiqueta.pack()
+    DescriptionLabel.pack()
 
-    boton = tk.Button(raiz, text="Seleccionar carpeta", command=seleccionar_carpeta, width=25)
-    boton.pack(pady=10)
+    SelectButton = tk.Button(
+        RootWindow, text="Select folder", command=SelectFolder, width=25
+    )
+    SelectButton.pack(pady=10)
 
-    raiz.mainloop()
+    RootWindow.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    Main()
