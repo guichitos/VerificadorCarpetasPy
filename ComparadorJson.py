@@ -22,13 +22,14 @@ def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, 
     return nodes
 
 
-def _load_json(path: str) -> tuple[JsonNode, str | None]:
+def _load_json(path: str) -> tuple[JsonNode, str | None, str | None]:
     with open(path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
 
     structure = data.get("structure", data)
     computer = data.get("computer") if isinstance(data, dict) else None
-    return structure, computer
+    selected_path = data.get("selected_path") if isinstance(data, dict) else None
+    return structure, computer, selected_path
 
 
 def _compare_structures(old_structure: JsonNode, new_structure: JsonNode) -> dict:
@@ -200,6 +201,8 @@ def _show_results(
     new_status: dict[str, str],
     old_computer: str | None,
     new_computer: str | None,
+    old_path: str | None,
+    new_path: str | None,
 ) -> None:
     window = tk.Toplevel()
     window.title("Resultado de la comparación")
@@ -211,12 +214,16 @@ def _show_results(
 
     previous_label = old_computer or "Desconocida"
     current_label = new_computer or "Desconocida"
+    previous_path = old_path or "Ruta no disponible"
+    current_path = new_path or "Ruta no disponible"
     files_info = tk.Label(
         window,
         text=(
             "Equipos comparados:\n"
             f"  - Estructura anterior: {previous_label}\n"
-            f"  - Estructura nueva: {current_label}"
+            f"    Ruta: {previous_path}\n"
+            f"  - Estructura nueva: {current_label}\n"
+            f"    Ruta: {current_path}"
         ),
         anchor="w",
         justify="left",
@@ -285,8 +292,8 @@ def compare_json_files() -> None:
         return
 
     try:
-        old_structure, old_computer = _load_json(old_file)
-        new_structure, new_computer = _load_json(new_file)
+        old_structure, old_computer, old_path = _load_json(old_file)
+        new_structure, new_computer, new_path = _load_json(new_file)
     except (OSError, json.JSONDecodeError) as error:
         messagebox.showerror("Error", f"No se pudieron leer los archivos: {error}")
         return
@@ -301,6 +308,8 @@ def compare_json_files() -> None:
         new_status,
         old_computer,
         new_computer,
+        old_path,
+        new_path,
     )
 
 
