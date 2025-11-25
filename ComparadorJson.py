@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
 
+from GeneradorArbol import BuildJson
+
 
 JsonNode = Dict[str, Any]
 
@@ -22,10 +24,14 @@ def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, 
     return nodes
 
 
-def _load_json(path: str) -> JsonNode:
+def _load_json(path: str) -> tuple[JsonNode, str | None, str | None]:
     with open(path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
-    return data.get("structure", data)
+
+    structure = data.get("structure", data)
+    computer = data.get("computer") if isinstance(data, dict) else None
+    selected_path = data.get("selected_path") if isinstance(data, dict) else None
+    return structure, computer, selected_path
 
 
 def _compare_structures(old_structure: JsonNode, new_structure: JsonNode) -> dict:
@@ -195,8 +201,10 @@ def _show_results(
     results: dict,
     old_status: dict[str, str],
     new_status: dict[str, str],
-    old_file: str,
-    new_file: str,
+    old_computer: str | None,
+    new_computer: str | None,
+    old_path: str | None,
+    new_path: str | None,
 ) -> None:
     window = tk.Toplevel()
     window.title("Resultado de la comparación")
@@ -206,9 +214,19 @@ def _show_results(
     window.columnconfigure(1, weight=1, uniform="col")
     window.rowconfigure(1, weight=1)
 
+    previous_label = old_computer or "Desconocida"
+    current_label = new_computer or "Desconocida"
+    previous_path = old_path or "Ruta no disponible"
+    current_path = new_path or "Ruta no disponible"
     files_info = tk.Label(
         window,
-        text=f"Archivo anterior: {old_file}\nArchivo nuevo: {new_file}",
+        text=(
+            "Equipos comparados:\n"
+            f"  - Estructura anterior: {previous_label}\n"
+            f"    Ruta: {previous_path}\n"
+            f"  - Estructura nueva: {current_label}\n"
+            f"    Ruta: {current_path}"
+        ),
         anchor="w",
         justify="left",
         padx=10,
@@ -267,20 +285,43 @@ def _select_file(prompt: str) -> str | None:
 
 
 def compare_json_files() -> None:
-    old_file = _select_file("Selecciona el JSON original")
+    old_file = _select_file("Selecciona el JSON remoto")
     if not old_file:
         return
 
-    new_file = _select_file("Selecciona el JSON actualizado")
-    if not new_file:
+    try:
+        old_structure, old_computer, old_path = _load_json(old_file)
+    except (OSError, json.JSONDecodeError) as error:
+        messagebox.showerror("Error", f"No se pudo leer el archivo remoto: {error}")
+        return
+
+    if not old_path:
+        messagebox.showerror(
+            "Error",
+            "El JSON remoto no contiene la ruta (selected_path) necesaria para generar la estructura local.",
+        )
+        return
+
+    if not os.path.isdir(old_path):
+        messagebox.showerror(
+            "Error",
+            "La ruta indicada en el JSON remoto no existe en esta computadora."
+            " Verifica que la carpeta esté disponible antes de comparar.",
+        )
         return
 
     try:
-        old_structure = _load_json(old_file)
-        new_structure = _load_json(new_file)
-    except (OSError, json.JSONDecodeError) as error:
-        messagebox.showerror("Error", f"No se pudieron leer los archivos: {error}")
+        local_data = BuildJson(old_path)
+    except OSError as error:
+        messagebox.showerror(
+            "Error",
+            f"No se pudo generar la estructura local para la ruta seleccionada: {error}",
+        )
         return
+
+    new_structure = local_data.get("structure", {})
+    new_computer = local_data.get("computer")
+    new_path = local_data.get("selected_path")
 
     results = _compare_structures(old_structure, new_structure)
     old_status, new_status = _build_status_maps(results)
@@ -290,8 +331,10 @@ def compare_json_files() -> None:
         results,
         old_status,
         new_status,
-        old_file,
-        new_file,
+        old_computer,
+        new_computer,
+        old_path,
+        new_path,
     )
 
 
@@ -304,8 +347,8 @@ def main() -> None:
     label = tk.Label(
         root,
         text=(
-            "Selecciona dos archivos JSON (anterior y actualizado) "
-            "para detectar renombres y nuevos elementos."
+            "Selecciona el JSON generado en otra computadora.\n"
+            "Usaremos esa ruta para generar el JSON local y comparar."
         ),
         wraplength=380,
         justify="center",
