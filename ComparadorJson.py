@@ -22,10 +22,13 @@ def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, 
     return nodes
 
 
-def _load_json(path: str) -> JsonNode:
+def _load_json(path: str) -> tuple[JsonNode, str | None]:
     with open(path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
-    return data.get("structure", data)
+
+    structure = data.get("structure", data)
+    computer = data.get("computer") if isinstance(data, dict) else None
+    return structure, computer
 
 
 def _compare_structures(old_structure: JsonNode, new_structure: JsonNode) -> dict:
@@ -195,8 +198,8 @@ def _show_results(
     results: dict,
     old_status: dict[str, str],
     new_status: dict[str, str],
-    old_file: str,
-    new_file: str,
+    old_computer: str | None,
+    new_computer: str | None,
 ) -> None:
     window = tk.Toplevel()
     window.title("Resultado de la comparación")
@@ -206,9 +209,15 @@ def _show_results(
     window.columnconfigure(1, weight=1, uniform="col")
     window.rowconfigure(1, weight=1)
 
+    previous_label = old_computer or "Desconocida"
+    current_label = new_computer or "Desconocida"
     files_info = tk.Label(
         window,
-        text=f"Archivo anterior: {old_file}\nArchivo nuevo: {new_file}",
+        text=(
+            "Equipos comparados:\n"
+            f"  - Estructura anterior: {previous_label}\n"
+            f"  - Estructura nueva: {current_label}"
+        ),
         anchor="w",
         justify="left",
         padx=10,
@@ -276,8 +285,8 @@ def compare_json_files() -> None:
         return
 
     try:
-        old_structure = _load_json(old_file)
-        new_structure = _load_json(new_file)
+        old_structure, old_computer = _load_json(old_file)
+        new_structure, new_computer = _load_json(new_file)
     except (OSError, json.JSONDecodeError) as error:
         messagebox.showerror("Error", f"No se pudieron leer los archivos: {error}")
         return
@@ -290,8 +299,8 @@ def compare_json_files() -> None:
         results,
         old_status,
         new_status,
-        old_file,
-        new_file,
+        old_computer,
+        new_computer,
     )
 
 
