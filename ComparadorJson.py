@@ -163,6 +163,7 @@ def _populate_tree(
     status_map: dict[str, str],
     parent: str = "",
     base_path: str = "",
+    expand: bool = True,
 ) -> None:
     if not node:
         return
@@ -180,9 +181,12 @@ def _populate_tree(
         tags=(tag,),
     )
 
+    if expand:
+        tree.item(item_id, open=True)
+
     if node.get("type") == "folder":
         for child in node.get("children", []):
-            _populate_tree(tree, child, status_map, item_id, current_path)
+            _populate_tree(tree, child, status_map, item_id, current_path, expand)
 
 
 def _show_results(
