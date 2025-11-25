@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import platform
@@ -7,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 
-OUTPUT_FILENAME = "estructura_carpetas.txt"
+OUTPUT_FILENAME = "estructura_carpetas.json"
 
 
 def obtener_arbol(ruta: str) -> dict:
@@ -22,36 +21,49 @@ def obtener_arbol(ruta: str) -> dict:
     return {"nombre": nombre, "tipo": "archivo"}
 
 
-def calcular_huella_carpeta(ruta: str) -> str:
-    """Calcula una huella SHA-256 basada en el contenido y estructura de la carpeta."""
+def obtener_id_onedrive(ruta_base: str) -> str | None:
+    """Intenta recuperar el ID interno de OneDrive.
 
-    hash_global = hashlib.sha256()
+    La implementación busca primero variables de entorno habituales y después
+    algunos archivos de configuración utilizados por clientes de OneDrive en
+    Linux. Si no encuentra nada devuelve ``None`` para avisar al usuario.
+    """
 
-    for raiz, directorios, archivos in os.walk(ruta):
-        directorios.sort()
-        archivos.sort()
+    posibles_env = [
+        "ONEDRIVE_DRIVE_ID",
+        "ONEDRIVE_ID",
+        "ONEDRIVE_RESOURCE_ID",
+    ]
+    for variable in posibles_env:
+        valor = os.environ.get(variable)
+        if valor:
+            return valor.strip()
 
-        for carpeta in directorios:
-            ruta_relativa = os.path.relpath(os.path.join(raiz, carpeta), ruta)
-            hash_global.update(f"DIR:{ruta_relativa}".encode("utf-8"))
+    posibles_rutas = [
+        os.path.join(os.path.expanduser("~"), ".config", "onedrive", "drive_id"),
+        os.path.join(os.path.expanduser("~"), ".config", "OneDrive", "drive_id"),
+        os.path.join(ruta_base, ".onedrive", "drive_id"),
+    ]
 
-        for archivo in archivos:
-            ruta_archivo = os.path.join(raiz, archivo)
-            ruta_relativa = os.path.relpath(ruta_archivo, ruta)
-            hash_global.update(f"FILE:{ruta_relativa}".encode("utf-8"))
+    for ruta_config in posibles_rutas:
+        if not os.path.isfile(ruta_config):
+            continue
+        try:
+            with open(ruta_config, "r", encoding="utf-8") as archivo:
+                contenido = archivo.read().strip()
+                if contenido:
+                    return contenido
+        except OSError:
+            continue
 
-            with open(ruta_archivo, "rb") as f:
-                for bloque in iter(lambda: f.read(8192), b""):
-                    hash_global.update(bloque)
-
-    return hash_global.hexdigest()
+    return None
 
 
 def generar_json(ruta_seleccionada: str) -> dict:
     """Arma la estructura JSON con los metadatos solicitados."""
     usuario = getpass.getuser()
     carpeta_local = os.path.expanduser("~")
-    huella = calcular_huella_carpeta(ruta_seleccionada)
+    onedrive_id = obtener_id_onedrive(ruta_seleccionada)
 
     return {
         "usuario": {
@@ -60,7 +72,7 @@ def generar_json(ruta_seleccionada: str) -> dict:
         },
         "computadora": platform.node(),
         "ruta_seleccionada": ruta_seleccionada,
-        "huella_carpeta": huella,
+        "onedrive_id": onedrive_id,
         "estructura": obtener_arbol(ruta_seleccionada),
     }
 
@@ -80,9 +92,18 @@ def seleccionar_carpeta() -> None:
 
     datos = generar_json(carpeta)
     ruta_archivo = guardar_archivo(carpeta, datos)
+
+    if datos.get("onedrive_id"):
+        mensaje_adicional = ""
+    else:
+        mensaje_adicional = (
+            "\nNo se encontró un ID interno de OneDrive. "
+            "Si usas OneDrive, inicia sesión en el cliente y vuelve a intentar."
+        )
+
     messagebox.showinfo(
         "Archivo creado",
-        f"Se generó el archivo '{OUTPUT_FILENAME}' en:\n{ruta_archivo}",
+        f"Se generó el archivo '{OUTPUT_FILENAME}' en:\n{ruta_archivo}{mensaje_adicional}",
     )
 
 
