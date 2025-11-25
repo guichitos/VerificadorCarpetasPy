@@ -162,31 +162,3 @@ def SelectFolder() -> None:
         "File created",
         f"The '{OUTPUT_FILENAME}' file was generated at:\n{OutputPath}{AdditionalMessage}",
     )
-
-
-def Main() -> None:
-    RootWindow = tk.Tk()
-    RootWindow.title("Folder tree generator")
-    RootWindow.geometry("400x200")
-    RootWindow.resizable(False, False)
-
-    DescriptionLabel = tk.Label(
-        RootWindow,
-        text="Select a folder to generate a JSON file with its structure.",
-        wraplength=360,
-        justify="center",
-        padx=20,
-        pady=20,
-    )
-    DescriptionLabel.pack()
-
-    SelectButton = tk.Button(
-        RootWindow, text="Select folder", command=SelectFolder, width=25
-    )
-    SelectButton.pack(pady=10)
-
-    RootWindow.mainloop()
-
-
-if __name__ == "__main__":
-    Main()
