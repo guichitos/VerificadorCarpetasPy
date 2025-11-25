@@ -1,0 +1,133 @@
+import getpass
+import json
+import os
+import platform
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+
+OUTPUT_FILENAME = "estructura_carpetas.json"
+
+
+def GetTree(TargetPath: str) -> dict:
+    """Build a dictionary representing the directory tree."""
+
+    NodeName = os.path.basename(TargetPath) or TargetPath
+    if os.path.isdir(TargetPath):
+        Children = [
+            GetTree(os.path.join(TargetPath, EntryName))
+            for EntryName in sorted(os.listdir(TargetPath))
+        ]
+        return {"name": NodeName, "type": "folder", "children": Children}
+    return {"name": NodeName, "type": "file"}
+
+
+def GetOneDriveId(BasePath: str) -> str | None:
+    """Try to read the internal OneDrive ID from common locations."""
+
+    EnvironmentCandidates = [
+        "ONEDRIVE_DRIVE_ID",
+        "ONEDRIVE_ID",
+        "ONEDRIVE_RESOURCE_ID",
+    ]
+    for VariableName in EnvironmentCandidates:
+        VariableValue = os.environ.get(VariableName)
+        if VariableValue:
+            return VariableValue.strip()
+
+    CandidatePaths = [
+        os.path.join(os.path.expanduser("~"), ".config", "onedrive", "drive_id"),
+        os.path.join(os.path.expanduser("~"), ".config", "OneDrive", "drive_id"),
+        os.path.join(BasePath, ".onedrive", "drive_id"),
+    ]
+
+    for ConfigPath in CandidatePaths:
+        if not os.path.isfile(ConfigPath):
+            continue
+        try:
+            with open(ConfigPath, "r", encoding="utf-8") as FileHandle:
+                FileContent = FileHandle.read().strip()
+                if FileContent:
+                    return FileContent
+        except OSError:
+            continue
+
+    return None
+
+
+def BuildJson(SelectedPath: str) -> dict:
+    """Assemble the JSON payload with metadata and structure."""
+
+    UserName = getpass.getuser()
+    LocalFolder = os.path.expanduser("~")
+    OneDriveId = GetOneDriveId(SelectedPath)
+
+    return {
+        "user": {
+            "name": UserName,
+            "local_folder": LocalFolder,
+        },
+        "computer": platform.node(),
+        "selected_path": SelectedPath,
+        "onedrive_id": OneDriveId,
+        "structure": GetTree(SelectedPath),
+    }
+
+
+def SaveFile(TargetFolder: str, Content: dict) -> str:
+    """Persist the JSON data inside the chosen folder."""
+
+    DestinationPath = os.path.join(TargetFolder, OUTPUT_FILENAME)
+    with open(DestinationPath, "w", encoding="utf-8") as FileHandle:
+        json.dump(Content, FileHandle, ensure_ascii=False, indent=2)
+    return DestinationPath
+
+
+def SelectFolder() -> None:
+    SelectedFolder = filedialog.askdirectory(title="Select a folder to analyze")
+    if not SelectedFolder:
+        return
+
+    JsonData = BuildJson(SelectedFolder)
+    OutputPath = SaveFile(SelectedFolder, JsonData)
+
+    if JsonData.get("onedrive_id"):
+        AdditionalMessage = ""
+    else:
+        AdditionalMessage = (
+            "\nNo OneDrive internal ID was found. "
+            "If you use OneDrive, sign in and try again."
+        )
+
+    messagebox.showinfo(
+        "File created",
+        f"The '{OUTPUT_FILENAME}' file was generated at:\n{OutputPath}{AdditionalMessage}",
+    )
+
+
+def Main() -> None:
+    RootWindow = tk.Tk()
+    RootWindow.title("Folder tree generator")
+    RootWindow.geometry("400x200")
+    RootWindow.resizable(False, False)
+
+    DescriptionLabel = tk.Label(
+        RootWindow,
+        text="Select a folder to generate a JSON file with its structure.",
+        wraplength=360,
+        justify="center",
+        padx=20,
+        pady=20,
+    )
+    DescriptionLabel.pack()
+
+    SelectButton = tk.Button(
+        RootWindow, text="Select folder", command=SelectFolder, width=25
+    )
+    SelectButton.pack(pady=10)
+
+    RootWindow.mainloop()
+
+
+if __name__ == "__main__":
+    Main()
