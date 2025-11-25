@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
 
+from GeneradorArbol import BuildJson
+
 
 JsonNode = Dict[str, Any]
 
@@ -283,20 +285,43 @@ def _select_file(prompt: str) -> str | None:
 
 
 def compare_json_files() -> None:
-    old_file = _select_file("Selecciona el JSON original")
+    old_file = _select_file("Selecciona el JSON remoto")
     if not old_file:
-        return
-
-    new_file = _select_file("Selecciona el JSON actualizado")
-    if not new_file:
         return
 
     try:
         old_structure, old_computer, old_path = _load_json(old_file)
-        new_structure, new_computer, new_path = _load_json(new_file)
     except (OSError, json.JSONDecodeError) as error:
-        messagebox.showerror("Error", f"No se pudieron leer los archivos: {error}")
+        messagebox.showerror("Error", f"No se pudo leer el archivo remoto: {error}")
         return
+
+    if not old_path:
+        messagebox.showerror(
+            "Error",
+            "El JSON remoto no contiene la ruta (selected_path) necesaria para generar la estructura local.",
+        )
+        return
+
+    if not os.path.isdir(old_path):
+        messagebox.showerror(
+            "Error",
+            "La ruta indicada en el JSON remoto no existe en esta computadora."
+            " Verifica que la carpeta esté disponible antes de comparar.",
+        )
+        return
+
+    try:
+        local_data = BuildJson(old_path)
+    except OSError as error:
+        messagebox.showerror(
+            "Error",
+            f"No se pudo generar la estructura local para la ruta seleccionada: {error}",
+        )
+        return
+
+    new_structure = local_data.get("structure", {})
+    new_computer = local_data.get("computer")
+    new_path = local_data.get("selected_path")
 
     results = _compare_structures(old_structure, new_structure)
     old_status, new_status = _build_status_maps(results)
@@ -322,8 +347,8 @@ def main() -> None:
     label = tk.Label(
         root,
         text=(
-            "Selecciona dos archivos JSON (anterior y actualizado) "
-            "para detectar renombres y nuevos elementos."
+            "Selecciona el JSON generado en otra computadora.\n"
+            "Usaremos esa ruta para generar el JSON local y comparar."
         ),
         wraplength=380,
         justify="center",
