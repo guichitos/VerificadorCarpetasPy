@@ -7,35 +7,48 @@ from GeneradorArbol import SelectFolder
 def main() -> None:
     root = tk.Tk()
     root.title("Herramientas de estructura de carpetas")
-    root.geometry("460x240")
+    root.geometry("520x280")
     root.resizable(False, False)
 
-    description = tk.Label(
-        root,
-        text=(
-            "Selecciona la acción que necesitas:\n"
-            "• Generar el JSON base para la carpeta actual.\n"
-            "• Comparar con un JSON remoto para detectar cambios."
-        ),
-        wraplength=420,
-        justify="left",
-        padx=20,
-        pady=20,
-    )
-    description.pack()
+    content = tk.Frame(root, padx=20, pady=15)
+    content.pack(fill="both", expand=True)
 
-    buttons_frame = tk.Frame(root)
-    buttons_frame.pack(pady=5)
+    step_one = tk.Label(
+        content,
+        text=(
+            "1. Generar un archivo de estado desde una carpeta en la computadora 1 "
+            "para guardar su estructura."
+        ),
+        wraplength=460,
+        justify="left",
+        anchor="w",
+    )
+    step_one.pack(fill="x")
 
     generate_button = tk.Button(
-        buttons_frame, text="Generar JSON base", command=SelectFolder, width=22
+        content, text="Generar JSON base", command=SelectFolder, width=24
     )
-    generate_button.grid(row=0, column=0, padx=5, pady=5)
+    generate_button.pack(pady=(6, 16))
+
+    step_two = tk.Label(
+        content,
+        text=(
+            "2. Realizar la comparación de carpetas en la computadora 2 usando el "
+            "archivo de estado generado."
+        ),
+        wraplength=460,
+        justify="left",
+        anchor="w",
+    )
+    step_two.pack(fill="x")
 
     compare_button = tk.Button(
-        buttons_frame, text="Comparar con JSON remoto", command=compare_json_files, width=22
+        content,
+        text="Comparar con JSON remoto",
+        command=compare_json_files,
+        width=24,
     )
-    compare_button.grid(row=0, column=1, padx=5, pady=5)
+    compare_button.pack(pady=(6, 0))
 
     root.mainloop()
 
