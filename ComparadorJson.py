@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
 
-from GeneradorArbol import BuildJson, SelectFolder
+from GeneradorArbol import BuildJson
 
 
 JsonNode = Dict[str, Any]
@@ -320,43 +320,3 @@ def compare_json_files() -> None:
         old_path,
         new_path,
     )
-
-
-def main() -> None:
-    root = tk.Tk()
-    root.title("Herramientas de estructura de carpetas")
-    root.geometry("420x260")
-    root.resizable(False, False)
-
-    label = tk.Label(
-        root,
-        text=(
-            "Elige la acción que quieres realizar:\n"
-            "• Generar el JSON base en la carpeta actual.\n"
-            "• Comparar usando un JSON remoto para recrear y contrastar la estructura."
-        ),
-        wraplength=380,
-        justify="left",
-        padx=20,
-        pady=20,
-    )
-    label.pack()
-
-    buttons_frame = tk.Frame(root)
-    buttons_frame.pack(pady=5)
-
-    generate_button = tk.Button(
-        buttons_frame, text="Generar JSON base", command=SelectFolder, width=22
-    )
-    generate_button.grid(row=0, column=0, padx=5, pady=5)
-
-    compare_button = tk.Button(
-        buttons_frame, text="Comparar con JSON remoto", command=compare_json_files, width=22
-    )
-    compare_button.grid(row=0, column=1, padx=5, pady=5)
-
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
