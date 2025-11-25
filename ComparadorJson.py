@@ -195,6 +195,8 @@ def _show_results(
     results: dict,
     old_status: dict[str, str],
     new_status: dict[str, str],
+    old_file: str,
+    new_file: str,
 ) -> None:
     window = tk.Toplevel()
     window.title("Resultado de la comparación")
@@ -204,9 +206,15 @@ def _show_results(
     window.columnconfigure(1, weight=1, uniform="col")
     window.rowconfigure(1, weight=1)
 
-    summary = _format_results(results)
-    summary_label = tk.Label(window, text=summary, anchor="w", justify="left", padx=10, pady=10)
-    summary_label.grid(row=0, column=0, columnspan=2, sticky="we")
+    files_info = tk.Label(
+        window,
+        text=f"Archivo anterior: {old_file}\nArchivo nuevo: {new_file}",
+        anchor="w",
+        justify="left",
+        padx=10,
+        pady=10,
+    )
+    files_info.grid(row=0, column=0, columnspan=2, sticky="we")
 
     old_frame = ttk.LabelFrame(window, text="Estructura anterior")
     old_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
@@ -276,7 +284,15 @@ def compare_json_files() -> None:
 
     results = _compare_structures(old_structure, new_structure)
     old_status, new_status = _build_status_maps(results)
-    _show_results(old_structure, new_structure, results, old_status, new_status)
+    _show_results(
+        old_structure,
+        new_structure,
+        results,
+        old_status,
+        new_status,
+        old_file,
+        new_file,
+    )
 
 
 def main() -> None:
