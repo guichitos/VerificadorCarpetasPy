@@ -42,11 +42,14 @@ def _ParseIniForDriveId(FileContent: str) -> str | None:
     CleanContent = FileContent.replace("\x00", "")
     IniKeys = ("graphdriveid", "cid", "usercid")
     for Line in CleanContent.splitlines():
-        NormalizedLine = Line.strip()
-        for Key in IniKeys:
-            KeyPrefix = f"{Key}="
-            if NormalizedLine.lower().startswith(KeyPrefix):
-                return NormalizedLine.split("=", 1)[1].strip()
+        if "=" not in Line:
+            continue
+        KeyPart, _, ValuePart = Line.partition("=")
+        NormalizedKey = KeyPart.strip().lower()
+        if NormalizedKey in IniKeys:
+            Candidate = ValuePart.strip()
+            if Candidate:
+                return Candidate
     return None
 
 
@@ -96,9 +99,6 @@ def GetOneDriveId(BasePath: str) -> str | None:
         ParsedDriveId = _ParseIniForDriveId(FileContent)
         if ParsedDriveId:
             return ParsedDriveId
-
-        if FileContent:
-            return FileContent
 
     return None
 
