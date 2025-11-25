@@ -36,7 +36,7 @@ def GetTree(TargetPath: str, RootPath: str, DriveId: str | None) -> dict:
     return {"name": NodeName, "type": "file", "graph_path": GraphPath}
 
 
-def _ParseIniForDriveId(FileContent: str) -> str | None:
+def _ParseIniForDriveId(FileContent: str, SourcePath: str) -> tuple[str | None, str | None]:
     """Extract the drive ID from OneDrive policy content."""
 
     CleanContent = FileContent.replace("\x00", "")
@@ -49,11 +49,11 @@ def _ParseIniForDriveId(FileContent: str) -> str | None:
         if NormalizedKey in IniKeys:
             Candidate = ValuePart.strip()
             if Candidate:
-                return Candidate
-    return None
+                return Candidate, f"{SourcePath} ({NormalizedKey})"
+    return None, None
 
 
-def GetOneDriveId(BasePath: str) -> str | None:
+def GetOneDriveId(BasePath: str) -> tuple[str | None, str | None]:
     """Try to read the internal OneDrive ID from common locations."""
 
     EnvironmentCandidates = [
@@ -64,7 +64,7 @@ def GetOneDriveId(BasePath: str) -> str | None:
     for VariableName in EnvironmentCandidates:
         VariableValue = os.environ.get(VariableName)
         if VariableValue:
-            return VariableValue.strip()
+            return VariableValue.strip(), f"environment ({VariableName})"
 
     CandidatePaths = [
         os.path.join(os.path.expanduser("~"), ".config", "onedrive", "drive_id"),
@@ -96,11 +96,11 @@ def GetOneDriveId(BasePath: str) -> str | None:
         if not FileContent:
             continue
 
-        ParsedDriveId = _ParseIniForDriveId(FileContent)
+        ParsedDriveId, Source = _ParseIniForDriveId(FileContent, ConfigPath)
         if ParsedDriveId:
-            return ParsedDriveId
+            return ParsedDriveId, Source
 
-    return None
+    return None, None
 
 
 def BuildJson(SelectedPath: str) -> dict:
@@ -108,7 +108,7 @@ def BuildJson(SelectedPath: str) -> dict:
 
     UserName = getpass.getuser()
     LocalFolder = os.path.expanduser("~")
-    OneDriveId = GetOneDriveId(SelectedPath)
+    OneDriveId, OneDriveSource = GetOneDriveId(SelectedPath)
 
     return {
         "user": {
@@ -117,7 +117,14 @@ def BuildJson(SelectedPath: str) -> dict:
         },
         "computer": platform.node(),
         "selected_path": SelectedPath,
-        "onedrive_id": OneDriveId,
+        "onedrive": {
+            "id": OneDriveId,
+            "source": OneDriveSource,
+            "description": (
+                "Internal drive identifier used by OneDrive Graph API. "
+                "Allows locating folders even if they are renamed."
+            ),
+        },
         "structure": GetTree(SelectedPath, SelectedPath, OneDriveId),
     }
 
@@ -139,8 +146,12 @@ def SelectFolder() -> None:
     JsonData = BuildJson(SelectedFolder)
     OutputPath = SaveFile(SelectedFolder, JsonData)
 
-    if JsonData.get("onedrive_id"):
-        AdditionalMessage = ""
+    OneDriveData = JsonData.get("onedrive", {})
+    if OneDriveData.get("id"):
+        AdditionalMessage = (
+            "\nSe detectó el identificador interno de OneDrive, "
+            "útil para ubicar carpetas aunque cambien de nombre."
+        )
     else:
         AdditionalMessage = (
             "\nNo OneDrive internal ID was found. "
