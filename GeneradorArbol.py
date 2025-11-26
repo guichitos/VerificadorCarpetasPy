@@ -2,11 +2,9 @@ import getpass
 import json
 import os
 import platform
+from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox
-
-
-OUTPUT_FILENAME = "estructura_carpetas.json"
 
 
 def GetTree(TargetPath: str, RootPath: str, DriveId: str | None) -> dict:
@@ -132,7 +130,15 @@ def BuildJson(SelectedPath: str) -> dict:
 def SaveFile(TargetFolder: str, Content: dict) -> str:
     """Persist the JSON data inside the chosen folder."""
 
-    DestinationPath = os.path.join(TargetFolder, OUTPUT_FILENAME)
+    def _sanitize_name(Name: str) -> str:
+        return "".join(Character if Character.isalnum() or Character in {"-", "_"} else "_" for Character in Name)
+
+    ComputerName = Content.get("computer") or platform.node() or "UnknownComputer"
+    SafeComputer = _sanitize_name(str(ComputerName)) or "UnknownComputer"
+    DateSuffix = datetime.now().strftime("%Y%m%d")
+    FileName = f"File_structure_{SafeComputer}_{DateSuffix}.json"
+
+    DestinationPath = os.path.join(TargetFolder, FileName)
     with open(DestinationPath, "w", encoding="utf-8") as FileHandle:
         json.dump(Content, FileHandle, ensure_ascii=False, indent=2)
     return DestinationPath
@@ -160,33 +166,5 @@ def SelectFolder() -> None:
 
     messagebox.showinfo(
         "File created",
-        f"The '{OUTPUT_FILENAME}' file was generated at:\n{OutputPath}{AdditionalMessage}",
+        f"The file was generated at:\n{OutputPath}{AdditionalMessage}",
     )
-
-
-def Main() -> None:
-    RootWindow = tk.Tk()
-    RootWindow.title("Folder tree generator")
-    RootWindow.geometry("400x200")
-    RootWindow.resizable(False, False)
-
-    DescriptionLabel = tk.Label(
-        RootWindow,
-        text="Select a folder to generate a JSON file with its structure.",
-        wraplength=360,
-        justify="center",
-        padx=20,
-        pady=20,
-    )
-    DescriptionLabel.pack()
-
-    SelectButton = tk.Button(
-        RootWindow, text="Select folder", command=SelectFolder, width=25
-    )
-    SelectButton.pack(pady=10)
-
-    RootWindow.mainloop()
-
-
-if __name__ == "__main__":
-    Main()
