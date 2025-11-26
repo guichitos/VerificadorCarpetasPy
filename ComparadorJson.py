@@ -261,6 +261,11 @@ def _show_results(
     if filtered_new:
         _populate_tree(new_tree, filtered_new, new_status)
 
+    controls = tk.Frame(window)
+    controls.grid(row=1, column=0, columnspan=2, pady=(0, 12))
+    close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
+    close_button.pack()
+
     window.grab_set()
 
 

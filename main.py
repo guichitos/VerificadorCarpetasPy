@@ -7,7 +7,7 @@ from GeneradorArbol import SelectFolder
 def main() -> None:
     root = tk.Tk()
     root.title("Herramientas de estructura de carpetas")
-    root.geometry("520x280")
+    root.geometry("520x330")
     root.resizable(False, False)
 
     content = tk.Frame(root, padx=20, pady=15)
@@ -48,7 +48,10 @@ def main() -> None:
         command=compare_json_files,
         width=24,
     )
-    compare_button.pack(pady=(6, 0))
+    compare_button.pack(pady=(6, 20))
+
+    close_button = tk.Button(content, text="Cerrar", command=root.destroy, width=16)
+    close_button.pack(pady=(0, 0))
 
     root.mainloop()
 
