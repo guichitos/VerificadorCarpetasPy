@@ -205,6 +205,8 @@ def _filter_structure_by_paths(
 
         if children:
             filtered_node["children"] = children
+    elif base_path not in allowed_folders:
+        return None
 
     return filtered_node
 
