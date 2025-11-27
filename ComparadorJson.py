@@ -300,7 +300,9 @@ def _show_results(
         section.columnconfigure(0, weight=1)
 
     remote_title = tk.Label(left_section, text="Remoto", font=("TkDefaultFont", 12, "bold"))
-    local_title = tk.Label(right_section, text="Local", font=("TkDefaultFont", 12, "bold"))
+    local_title = tk.Label(
+        right_section, text="Servidor", font=("TkDefaultFont", 12, "bold")
+    )
     remote_title.grid(row=0, column=0, pady=(0, 6))
     local_title.grid(row=0, column=0, pady=(0, 6))
 
