@@ -256,15 +256,35 @@ def _show_results(
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
 
-    if filtered_old:
-        _populate_tree(old_tree, filtered_old, old_status)
-    if filtered_new:
-        _populate_tree(new_tree, filtered_new, new_status)
+    filter_var = tk.BooleanVar(value=True)
+
+    def refresh_views() -> None:
+        for tree in (old_tree, new_tree):
+            for item in tree.get_children():
+                tree.delete(item)
+
+        show_only_changes = filter_var.get()
+        display_old = filtered_old if show_only_changes else old_structure
+        display_new = filtered_new if show_only_changes else new_structure
+
+        if display_old:
+            _populate_tree(old_tree, display_old, old_status)
+        if display_new:
+            _populate_tree(new_tree, display_new, new_status)
+
+    refresh_views()
 
     controls = tk.Frame(window)
     controls.grid(row=1, column=0, columnspan=2, pady=(0, 12))
+    toggle = tk.Checkbutton(
+        controls,
+        text="Mostrar solo diferencias",
+        variable=filter_var,
+        command=refresh_views,
+    )
+    toggle.pack(side="left", padx=(0, 10))
     close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
-    close_button.pack()
+    close_button.pack(side="left")
 
     window.grab_set()
 
