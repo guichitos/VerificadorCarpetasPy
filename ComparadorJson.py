@@ -185,7 +185,7 @@ def _filter_structure_by_paths(
     current_path = _compose_path(base_path, node.get("name", ""))
     node_type = node.get("type", "")
 
-    if node_type == "folder" and current_path not in allowed_folders:
+    if node_type == "folder" and current_path not in allowed_folders and base_path:
         return None
 
     filtered_node: JsonNode = {"name": node.get("name", ""), "type": node_type}
@@ -193,11 +193,16 @@ def _filter_structure_by_paths(
     if node_type == "folder":
         children: list[JsonNode] = []
         for child in node.get("children", []):
-            filtered_child = _filter_structure_by_paths(
-                child, allowed_folders, current_path
-            )
-            if filtered_child:
-                children.append(filtered_child)
+            child_type = child.get("type", "")
+            if child_type == "folder":
+                filtered_child = _filter_structure_by_paths(
+                    child, allowed_folders, current_path
+                )
+                if filtered_child:
+                    children.append(filtered_child)
+            else:
+                children.append(child)
+
         if children:
             filtered_node["children"] = children
     elif base_path not in allowed_folders:
