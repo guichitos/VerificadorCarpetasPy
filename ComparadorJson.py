@@ -203,13 +203,14 @@ def _populate_tree(
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
+    node_class = "Carpeta" if node_type == "folder" else "Archivo" if node_type == "file" else node_type
     tag = _status_to_tag(status)
 
     item_id = tree.insert(
         parent,
         "end",
         text=node.get("name", ""),
-        values=(status, node_type),
+        values=(status, node_type, node_class),
         tags=(tag,),
     )
 
@@ -261,9 +262,11 @@ def _show_results(
         tree.heading("#0", text="Elemento")
         tree.heading("Estado", text="Estado")
         tree.heading("Tipo", text="Tipo")
-        tree.column("#0", width=320, stretch=True)
-        tree.column("Estado", width=200, anchor="center")
+        tree.heading("Carpeta/Archivo", text="Carpeta/Archivo")
+        tree.column("#0", width=280, stretch=True)
+        tree.column("Estado", width=180, anchor="center")
         tree.column("Tipo", width=120, anchor="center")
+        tree.column("Carpeta/Archivo", width=140, anchor="center")
 
         tree.tag_configure("nuevo", foreground="#22863a")
         tree.tag_configure("eliminado", foreground="#cb2431")
