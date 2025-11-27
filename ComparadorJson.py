@@ -164,23 +164,30 @@ def _filter_structure_for_changes(
 
 
 def _filter_structure_by_paths(
-    node: JsonNode | None, allowed_paths: set[str], base_path: str = ""
+    node: JsonNode | None, allowed_folders: set[str], base_path: str = ""
 ) -> JsonNode | None:
-    """Return a copy of the tree containing only nodes whose paths are allowed."""
+    """Return a copy of the tree filtering only at the folder level.
+
+    Folders not present in ``allowed_folders`` are pruned, but files inside kept
+    folders are preserved regardless of whether they existed in the original
+    JSON.
+    """
 
     if not node:
         return None
 
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
-    if current_path not in allowed_paths:
+    node_type = node.get("type", "")
+
+    if node_type == "folder" and current_path not in allowed_folders:
         return None
 
-    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node.get("type", "")}
+    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node_type}
 
-    if node.get("type") == "folder":
+    if node_type == "folder":
         children: list[JsonNode] = []
         for child in node.get("children", []):
-            filtered_child = _filter_structure_by_paths(child, allowed_paths, current_path)
+            filtered_child = _filter_structure_by_paths(child, allowed_folders, current_path)
             if filtered_child:
                 children.append(filtered_child)
         if children:
@@ -288,7 +295,7 @@ def _show_results(
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
-    allowed_new_paths = {path for path, _, _ in results.get("old_nodes", [])}
+    allowed_new_folders = {path for path, ntype, _ in results.get("old_nodes", []) if ntype == "folder"}
 
     filter_var = tk.BooleanVar(value=True)
     restrict_var = tk.BooleanVar(value=False)
@@ -304,7 +311,7 @@ def _show_results(
         display_new = filtered_new if show_only_changes else new_structure
 
         if restrict_to_json:
-            display_new = _filter_structure_by_paths(display_new, allowed_new_paths)
+            display_new = _filter_structure_by_paths(display_new, allowed_new_folders)
 
         if display_old:
             _populate_tree(old_tree, display_old, old_status)
