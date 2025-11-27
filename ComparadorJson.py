@@ -289,14 +289,25 @@ def _show_results(
     current_label = new_computer or "Desconocida"
     previous_path = old_path or "Ruta no disponible"
     current_path = new_path or "Ruta no disponible"
-    old_frame = ttk.LabelFrame(
-        window, text=f"Remoto - {previous_label} - {previous_path}"
-    )
-    old_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-    new_frame = ttk.LabelFrame(
-        window, text=f"Local - {current_label} - {current_path}"
-    )
-    new_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    left_section = ttk.Frame(window)
+    right_section = ttk.Frame(window)
+    left_section.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+    right_section.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    for section in (left_section, right_section):
+        section.rowconfigure(1, weight=1)
+        section.columnconfigure(0, weight=1)
+
+    remote_title = tk.Label(left_section, text="Remoto", font=("TkDefaultFont", 12, "bold"))
+    local_title = tk.Label(right_section, text="Local", font=("TkDefaultFont", 12, "bold"))
+    remote_title.grid(row=0, column=0, pady=(0, 6))
+    local_title.grid(row=0, column=0, pady=(0, 6))
+
+    old_frame = ttk.LabelFrame(left_section, text=f"{previous_label} - {previous_path}")
+    old_frame.grid(row=1, column=0, sticky="nsew")
+    new_frame = ttk.LabelFrame(right_section, text=f"{current_label} - {current_path}")
+    new_frame.grid(row=1, column=0, sticky="nsew")
 
     for frame in (old_frame, new_frame):
         frame.rowconfigure(0, weight=1)
