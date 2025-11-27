@@ -164,13 +164,16 @@ def _filter_structure_for_changes(
 
 
 def _filter_structure_by_paths(
-    node: JsonNode | None, allowed_folders: set[str], base_path: str = ""
+    node: JsonNode | None,
+    allowed_folders: set[str],
+    base_path: str = "",
+    ancestor_allowed: bool = False,
 ) -> JsonNode | None:
     """Return a copy of the tree filtering only at the folder level.
 
-    Folders not present in ``allowed_folders`` are pruned, but files inside kept
-    folders are preserved regardless of whether they existed in the original
-    JSON.
+    Folders not present in ``allowed_folders`` are pruned unless they are
+    descendants of a permitted folder, ensuring new files nested under an
+    original folder remain visible.
     """
 
     if not node:
@@ -178,8 +181,9 @@ def _filter_structure_by_paths(
 
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
     node_type = node.get("type", "")
+    is_allowed_folder = ancestor_allowed or current_path in allowed_folders
 
-    if node_type == "folder" and current_path not in allowed_folders:
+    if node_type == "folder" and not is_allowed_folder:
         return None
 
     filtered_node: JsonNode = {"name": node.get("name", ""), "type": node_type}
@@ -187,11 +191,15 @@ def _filter_structure_by_paths(
     if node_type == "folder":
         children: list[JsonNode] = []
         for child in node.get("children", []):
-            filtered_child = _filter_structure_by_paths(child, allowed_folders, current_path)
+            filtered_child = _filter_structure_by_paths(
+                child, allowed_folders, current_path, ancestor_allowed=is_allowed_folder
+            )
             if filtered_child:
                 children.append(filtered_child)
         if children:
             filtered_node["children"] = children
+    elif not is_allowed_folder:
+        return None
 
     return filtered_node
 
