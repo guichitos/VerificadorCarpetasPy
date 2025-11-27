@@ -10,10 +10,15 @@ from GeneradorArbol import BuildJson
 JsonNode = Dict[str, Any]
 
 
+def _compose_path(base_path: str, name: str) -> str:
+    parts = [segment for segment in (base_path, name) if segment]
+    return "/".join(parts).replace("\\", "/")
+
+
 def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, str | None]]:
     """Return a flat list of (path, type, graph_path) tuples for each node."""
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     node_type = node.get("type", "")
     graph_path = node.get("graph_path")
 
@@ -142,7 +147,7 @@ def _filter_structure_for_changes(
     Ancestors of changed nodes are kept to preserve the folder context.
     """
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     status = status_map.get(current_path, "Sin cambios")
 
     children: list[JsonNode] = []
@@ -177,7 +182,7 @@ def _filter_structure_by_paths(
     if not node:
         return None
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     node_type = node.get("type", "")
 
     if node_type == "folder" and current_path not in allowed_folders:
@@ -212,7 +217,7 @@ def _populate_tree(
     if not node:
         return
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
     display_type = "Carpeta" if node_type == "folder" else "Archivo" if node_type == "file" else node_type
