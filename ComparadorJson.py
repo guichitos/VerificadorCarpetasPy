@@ -559,6 +559,8 @@ def _show_results(
 
     old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
+    old_tree.bind("<<TreeviewSelect>>", _sync_selection)
+
     window.grab_set()
 
 
