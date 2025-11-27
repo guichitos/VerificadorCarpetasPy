@@ -170,22 +170,31 @@ def _filter_structure_for_changes(
 
 def _filter_structure_by_paths(
     node: JsonNode | None,
-    allowed_folders: set[str],
+    allowed_top_folders: set[str],
     base_path: str = "",
+    root_path: str | None = None,
 ) -> JsonNode | None:
-    """Return a copy of the tree filtering only at the folder level.
+    """Return a copy of the tree filtering only top-level folders.
 
-    Only folders present in ``allowed_folders`` are kept. Files inside allowed
-    folders are preserved even if they were not present in the original JSON.
+    Only folders whose *top-level* path exists in ``allowed_top_folders`` are
+    kept. Once a top-level folder is allowed, its entire subtree is preserved.
+    Files are never filtered by this function.
     """
 
     if not node:
         return None
 
     current_path = _compose_path(base_path, node.get("name", ""))
+    if root_path is None:
+        root_path = current_path
+
     node_type = node.get("type", "")
 
-    if node_type == "folder" and current_path not in allowed_folders and base_path:
+    if (
+        node_type == "folder"
+        and base_path == root_path
+        and current_path not in allowed_top_folders
+    ):
         return None
 
     filtered_node: JsonNode = {"name": node.get("name", ""), "type": node_type}
@@ -196,7 +205,7 @@ def _filter_structure_by_paths(
             child_type = child.get("type", "")
             if child_type == "folder":
                 filtered_child = _filter_structure_by_paths(
-                    child, allowed_folders, current_path
+                    child, allowed_top_folders, current_path, root_path
                 )
                 if filtered_child:
                     children.append(filtered_child)
@@ -209,6 +218,19 @@ def _filter_structure_by_paths(
         return None
 
     return filtered_node
+
+
+def _get_top_level_folders(structure: JsonNode) -> set[str]:
+    """Return the set of folder paths present at the top level of ``structure``."""
+
+    root_path = _compose_path("", structure.get("name", ""))
+    allowed: set[str] = set()
+
+    for child in structure.get("children", []):
+        if child.get("type") == "folder":
+            allowed.add(_compose_path(root_path, child.get("name", "")))
+
+    return allowed
 
 
 def _populate_tree(
@@ -310,7 +332,7 @@ def _show_results(
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
-    allowed_new_folders = {path for path, ntype, _ in results.get("old_nodes", []) if ntype == "folder"}
+    allowed_top_folders = _get_top_level_folders(old_structure)
 
     filter_var = tk.BooleanVar(value=True)
     restrict_var = tk.BooleanVar(value=False)
@@ -326,7 +348,7 @@ def _show_results(
         display_new = filtered_new if show_only_changes else new_structure
 
         if restrict_to_json:
-            display_new = _filter_structure_by_paths(display_new, allowed_new_folders)
+            display_new = _filter_structure_by_paths(display_new, allowed_top_folders)
 
         if display_old:
             _populate_tree(old_tree, display_old, old_status)
