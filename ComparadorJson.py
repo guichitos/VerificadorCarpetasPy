@@ -163,6 +163,32 @@ def _filter_structure_for_changes(
     return filtered_node
 
 
+def _filter_structure_by_paths(
+    node: JsonNode | None, allowed_paths: set[str], base_path: str = ""
+) -> JsonNode | None:
+    """Return a copy of the tree containing only nodes whose paths are allowed."""
+
+    if not node:
+        return None
+
+    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    if current_path not in allowed_paths:
+        return None
+
+    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node.get("type", "")}
+
+    if node.get("type") == "folder":
+        children: list[JsonNode] = []
+        for child in node.get("children", []):
+            filtered_child = _filter_structure_by_paths(child, allowed_paths, current_path)
+            if filtered_child:
+                children.append(filtered_child)
+        if children:
+            filtered_node["children"] = children
+
+    return filtered_node
+
+
 def _populate_tree(
     tree: ttk.Treeview,
     node: JsonNode,
@@ -177,13 +203,14 @@ def _populate_tree(
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
+    node_class = "Carpeta" if node_type == "folder" else "Archivo" if node_type == "file" else node_type
     tag = _status_to_tag(status)
 
     item_id = tree.insert(
         parent,
         "end",
         text=node.get("name", ""),
-        values=(status, node_type),
+        values=(status, node_type, node_class),
         tags=(tag,),
     )
 
@@ -227,16 +254,19 @@ def _show_results(
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
 
-    old_tree = ttk.Treeview(old_frame, columns=("Estado", "Tipo"), show="tree headings")
-    new_tree = ttk.Treeview(new_frame, columns=("Estado", "Tipo"), show="tree headings")
+    columns = ("Estado", "Tipo", "Carpeta/Archivo")
+    old_tree = ttk.Treeview(old_frame, columns=columns, show="tree headings")
+    new_tree = ttk.Treeview(new_frame, columns=columns, show="tree headings")
 
     for tree in (old_tree, new_tree):
         tree.heading("#0", text="Elemento")
         tree.heading("Estado", text="Estado")
         tree.heading("Tipo", text="Tipo")
-        tree.column("#0", width=320, stretch=True)
-        tree.column("Estado", width=200, anchor="center")
+        tree.heading("Carpeta/Archivo", text="Carpeta/Archivo")
+        tree.column("#0", width=280, stretch=True)
+        tree.column("Estado", width=180, anchor="center")
         tree.column("Tipo", width=120, anchor="center")
+        tree.column("Carpeta/Archivo", width=140, anchor="center")
 
         tree.tag_configure("nuevo", foreground="#22863a")
         tree.tag_configure("eliminado", foreground="#cb2431")
@@ -255,16 +285,49 @@ def _show_results(
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
+    allowed_new_paths = {path for path, _, _ in results.get("old_nodes", [])}
 
-    if filtered_old:
-        _populate_tree(old_tree, filtered_old, old_status)
-    if filtered_new:
-        _populate_tree(new_tree, filtered_new, new_status)
+    filter_var = tk.BooleanVar(value=True)
+    restrict_var = tk.BooleanVar(value=False)
+
+    def refresh_views() -> None:
+        for tree in (old_tree, new_tree):
+            for item in tree.get_children():
+                tree.delete(item)
+
+        show_only_changes = filter_var.get()
+        restrict_to_json = restrict_var.get()
+        display_old = filtered_old if show_only_changes else old_structure
+        display_new = filtered_new if show_only_changes else new_structure
+
+        if restrict_to_json:
+            display_new = _filter_structure_by_paths(display_new, allowed_new_paths)
+
+        if display_old:
+            _populate_tree(old_tree, display_old, old_status)
+        if display_new:
+            _populate_tree(new_tree, display_new, new_status)
+
+    refresh_views()
 
     controls = tk.Frame(window)
     controls.grid(row=1, column=0, columnspan=2, pady=(0, 12))
+    toggle = tk.Checkbutton(
+        controls,
+        text="Mostrar solo diferencias",
+        variable=filter_var,
+        command=refresh_views,
+    )
+    toggle.pack(side="left", padx=(0, 10))
+    restrict_toggle = tk.Checkbutton(
+        controls,
+        text="Mostrar solo carpetas presentes en el JSON",
+        variable=restrict_var,
+        command=refresh_views,
+    )
+    restrict_toggle.pack(side="left", padx=(0, 10))
     close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
-    close_button.pack()
+    close_button.pack(side="left")
 
     window.grab_set()
 
