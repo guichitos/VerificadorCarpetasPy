@@ -281,6 +281,7 @@ def _populate_tree(
     item_id = tree.insert(
         parent,
         "end",
+        iid=current_path,
         text=node.get("name", ""),
         values=(status, display_type),
         tags=(tag,),
@@ -373,8 +374,9 @@ def _show_results(
     new_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
 
     filter_var = tk.BooleanVar(value=True)
-    restrict_var = tk.BooleanVar(value=False)
+    restrict_var = tk.BooleanVar(value=True)
     include_files_var = tk.BooleanVar(value=False)
+    sync_selection_var = tk.BooleanVar(value=False)
 
     comparison_state: dict[str, Any] = {}
     allowed_folders = _get_top_level_folders(old_structure)
@@ -427,6 +429,41 @@ def _show_results(
         if base_new:
             _populate_tree(new_tree, base_new, new_status)
 
+    def _expand_and_select(tree: ttk.Treeview, item_id: str) -> None:
+        current = item_id
+        while current:
+            tree.item(current, open=True)
+            current = tree.parent(current)
+
+        tree.selection_set(item_id)
+        tree.focus(item_id)
+        tree.see(item_id)
+
+    def _sync_selection(event: tk.Event | None = None) -> None:
+        if not sync_selection_var.get():
+            return
+
+        selection = old_tree.selection()
+        if not selection:
+            return
+
+        target = selection[0]
+        candidate = target
+
+        while candidate:
+            if new_tree.exists(candidate):
+                _expand_and_select(new_tree, candidate)
+                return
+
+            if "/" in candidate:
+                candidate = candidate.rsplit("/", 1)[0]
+            else:
+                break
+
+        if new_tree.get_children():
+            fallback = new_tree.get_children()[0]
+            _expand_and_select(new_tree, fallback)
+
     def refresh_all() -> None:
         recompute()
         refresh_views()
@@ -449,6 +486,12 @@ def _show_results(
         command=refresh_views,
     )
     restrict_toggle.pack(side="left", padx=(0, 10))
+    sync_selection_toggle = tk.Checkbutton(
+        controls,
+        text="Selección sincronizada",
+        variable=sync_selection_var,
+    )
+    sync_selection_toggle.pack(side="left", padx=(0, 10))
     include_files_toggle = tk.Checkbutton(
         controls,
         text="Incluir archivos en la comparación",
@@ -458,6 +501,8 @@ def _show_results(
     include_files_toggle.pack(side="left", padx=(0, 10))
     close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
     close_button.pack(side="left")
+
+    old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
     window.grab_set()
 
