@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
@@ -404,6 +405,7 @@ def _show_results(
                 "filtered_new": filtered_new,
                 "old_status": old_status,
                 "new_status": new_status,
+                "results": results,
             }
         )
 
@@ -468,39 +470,94 @@ def _show_results(
         recompute()
         refresh_views()
 
+    def generate_report() -> None:
+        results = comparison_state.get("results")
+        if not results:
+            messagebox.showwarning(
+                "Sin datos",
+                "Aún no hay resultados para generar el informe. Ejecuta una comparación primero.",
+            )
+            return
+
+        timestamp = datetime.now().strftime("%Y.%m.%d.%H%M")
+        filename = f"Files_diferences_{timestamp}.txt"
+        destination = os.path.join(old_path or os.getcwd(), filename)
+
+        content = _format_results(results)
+
+        try:
+            with open(destination, "w", encoding="utf-8") as handle:
+                handle.write(content)
+        except OSError as error:
+            messagebox.showerror(
+                "Error al guardar",
+                f"No se pudo crear el informe en {destination}: {error}",
+            )
+            return
+
+        messagebox.showinfo(
+            "Informe generado",
+            f"Se creó el archivo de diferencias:\n{destination}",
+        )
+
     refresh_all()
 
     controls = tk.Frame(window)
-    controls.grid(row=1, column=0, columnspan=2, pady=(0, 12))
+    controls.grid(row=1, column=0, columnspan=2, pady=(0, 12), sticky="ew")
+    controls.columnconfigure(0, weight=1)
+    controls.columnconfigure(1, weight=1)
+
+    filters_frame = ttk.LabelFrame(controls, text="Filtros")
+    filters_frame.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+    operations_frame = ttk.LabelFrame(controls, text="Operaciones")
+    operations_frame.grid(row=0, column=1, sticky="nsew")
+
     toggle = tk.Checkbutton(
-        controls,
+        filters_frame,
         text="Mostrar solo diferencias",
         variable=filter_var,
         command=refresh_views,
+        anchor="w",
     )
-    toggle.pack(side="left", padx=(0, 10))
+    toggle.pack(fill="x", padx=10, pady=(8, 2))
     restrict_toggle = tk.Checkbutton(
-        controls,
+        filters_frame,
         text="Mostrar solo carpetas presentes en remoto",
         variable=restrict_var,
         command=refresh_views,
+        anchor="w",
     )
-    restrict_toggle.pack(side="left", padx=(0, 10))
+    restrict_toggle.pack(fill="x", padx=10, pady=2)
     sync_selection_toggle = tk.Checkbutton(
-        controls,
+        filters_frame,
         text="Selección sincronizada",
         variable=sync_selection_var,
+        anchor="w",
     )
-    sync_selection_toggle.pack(side="left", padx=(0, 10))
+    sync_selection_toggle.pack(fill="x", padx=10, pady=2)
     include_files_toggle = tk.Checkbutton(
-        controls,
+        filters_frame,
         text="Incluir archivos en la comparación",
         variable=include_files_var,
         command=refresh_all,
+        anchor="w",
     )
-    include_files_toggle.pack(side="left", padx=(0, 10))
-    close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
-    close_button.pack(side="left")
+    include_files_toggle.pack(fill="x", padx=10, pady=(2, 8))
+
+    generate_button = tk.Button(
+        operations_frame,
+        text="Generar informe de diferencias",
+        width=28,
+        command=generate_report,
+    )
+    generate_button.pack(fill="x", padx=10, pady=(8, 4))
+
+    close_button = tk.Button(
+        operations_frame, text="Cerrar", width=28, command=window.destroy
+    )
+    close_button.pack(fill="x", padx=10, pady=(4, 8))
+
+    old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
     old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
