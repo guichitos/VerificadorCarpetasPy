@@ -203,13 +203,14 @@ def _populate_tree(
     current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
+    display_type = "Carpeta" if node_type == "folder" else "Archivo" if node_type == "file" else node_type
     tag = _status_to_tag(status)
 
     item_id = tree.insert(
         parent,
         "end",
         text=node.get("name", ""),
-        values=(status, node_type),
+        values=(status, display_type),
         tags=(tag,),
     )
 
