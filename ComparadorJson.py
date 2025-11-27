@@ -15,17 +15,19 @@ def _compose_path(base_path: str, name: str) -> str:
     return "/".join(parts).replace("\\", "/")
 
 
-def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, str | None]]:
+def _collect_nodes(
+    node: JsonNode, base_path: str = "", include_files: bool = True
+) -> List[Tuple[str, str, str | None]]:
     """Return a flat list of (path, type, graph_path) tuples for each node."""
 
     current_path = _compose_path(base_path, node.get("name", ""))
     node_type = node.get("type", "")
     graph_path = node.get("graph_path")
 
-    nodes = [(current_path, node_type, graph_path)]
+    nodes = [(current_path, node_type, graph_path)] if include_files or node_type == "folder" else []
     if node_type == "folder":
         for child in node.get("children", []):
-            nodes.extend(_collect_nodes(child, current_path))
+            nodes.extend(_collect_nodes(child, current_path, include_files))
     return nodes
 
 
@@ -39,9 +41,11 @@ def _load_json(path: str) -> tuple[JsonNode, str | None, str | None]:
     return structure, computer, selected_path
 
 
-def _compare_structures(old_structure: JsonNode, new_structure: JsonNode) -> dict:
-    old_nodes = _collect_nodes(old_structure)
-    new_nodes = _collect_nodes(new_structure)
+def _compare_structures(
+    old_structure: JsonNode, new_structure: JsonNode, include_files: bool = True
+) -> dict:
+    old_nodes = _collect_nodes(old_structure, include_files=include_files)
+    new_nodes = _collect_nodes(new_structure, include_files=include_files)
 
     old_by_graph = {graph: (path, ntype) for path, ntype, graph in old_nodes if graph}
     new_by_graph = {graph: (path, ntype) for path, ntype, graph in new_nodes if graph}
@@ -168,6 +172,30 @@ def _filter_structure_for_changes(
     return filtered_node
 
 
+def _filter_structure_by_type(node: JsonNode | None, include_files: bool) -> JsonNode | None:
+    """Return a copy of the structure honoring the ``include_files`` flag."""
+
+    if not node:
+        return None
+
+    node_type = node.get("type", "")
+    if node_type == "file" and not include_files:
+        return None
+
+    filtered: JsonNode = {"name": node.get("name", ""), "type": node_type}
+
+    if node_type == "folder":
+        children: list[JsonNode] = []
+        for child in node.get("children", []):
+            filtered_child = _filter_structure_by_type(child, include_files)
+            if filtered_child:
+                children.append(filtered_child)
+        if children:
+            filtered["children"] = children
+
+    return filtered
+
+
 def _filter_structure_by_paths(
     node: JsonNode | None,
     allowed_folders: set[str],
@@ -253,6 +281,7 @@ def _populate_tree(
     item_id = tree.insert(
         parent,
         "end",
+        iid=current_path,
         text=node.get("name", ""),
         values=(status, display_type),
         tags=(tag,),
@@ -269,9 +298,6 @@ def _populate_tree(
 def _show_results(
     old_structure: JsonNode,
     new_structure: JsonNode,
-    results: dict,
-    old_status: dict[str, str],
-    new_status: dict[str, str],
     old_computer: str | None,
     new_computer: str | None,
     old_path: str | None,
@@ -347,12 +373,39 @@ def _show_results(
     old_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
     new_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
 
-    filtered_old = _filter_structure_for_changes(old_structure, old_status)
-    filtered_new = _filter_structure_for_changes(new_structure, new_status)
+    filter_var = tk.BooleanVar(value=True)
+    restrict_var = tk.BooleanVar(value=True)
+    include_files_var = tk.BooleanVar(value=False)
+    sync_selection_var = tk.BooleanVar(value=False)
+
+    comparison_state: dict[str, Any] = {}
     allowed_folders = _get_top_level_folders(old_structure)
 
-    filter_var = tk.BooleanVar(value=True)
-    restrict_var = tk.BooleanVar(value=False)
+    def recompute() -> None:
+        include_files = include_files_var.get()
+
+        display_old = _filter_structure_by_type(old_structure, include_files) or {}
+        display_new = _filter_structure_by_type(new_structure, include_files) or {}
+
+        results = _compare_structures(
+            display_old, display_new, include_files=include_files
+        )
+        old_status, new_status = _build_status_maps(results)
+
+        filtered_old = _filter_structure_for_changes(display_old, old_status)
+        filtered_new = _filter_structure_for_changes(display_new, new_status)
+
+        comparison_state.clear()
+        comparison_state.update(
+            {
+                "old": display_old,
+                "new": display_new,
+                "filtered_old": filtered_old,
+                "filtered_new": filtered_new,
+                "old_status": old_status,
+                "new_status": new_status,
+            }
+        )
 
     def refresh_views() -> None:
         for tree in (old_tree, new_tree):
@@ -361,18 +414,61 @@ def _show_results(
 
         show_only_changes = filter_var.get()
         restrict_to_json = restrict_var.get()
-        display_old = filtered_old if show_only_changes else old_structure
-        display_new = filtered_new if show_only_changes else new_structure
+
+        base_old = comparison_state.get("filtered_old") if show_only_changes else comparison_state.get("old")
+        base_new = comparison_state.get("filtered_new") if show_only_changes else comparison_state.get("new")
 
         if restrict_to_json:
-            display_new = _filter_structure_by_paths(display_new, allowed_folders)
+            base_new = _filter_structure_by_paths(base_new, allowed_folders)
 
-        if display_old:
-            _populate_tree(old_tree, display_old, old_status)
-        if display_new:
-            _populate_tree(new_tree, display_new, new_status)
+        old_status = comparison_state.get("old_status", {})
+        new_status = comparison_state.get("new_status", {})
 
-    refresh_views()
+        if base_old:
+            _populate_tree(old_tree, base_old, old_status)
+        if base_new:
+            _populate_tree(new_tree, base_new, new_status)
+
+    def _expand_and_select(tree: ttk.Treeview, item_id: str) -> None:
+        current = item_id
+        while current:
+            tree.item(current, open=True)
+            current = tree.parent(current)
+
+        tree.selection_set(item_id)
+        tree.focus(item_id)
+        tree.see(item_id)
+
+    def _sync_selection(event: tk.Event | None = None) -> None:
+        if not sync_selection_var.get():
+            return
+
+        selection = old_tree.selection()
+        if not selection:
+            return
+
+        target = selection[0]
+        candidate = target
+
+        while candidate:
+            if new_tree.exists(candidate):
+                _expand_and_select(new_tree, candidate)
+                return
+
+            if "/" in candidate:
+                candidate = candidate.rsplit("/", 1)[0]
+            else:
+                break
+
+        if new_tree.get_children():
+            fallback = new_tree.get_children()[0]
+            _expand_and_select(new_tree, fallback)
+
+    def refresh_all() -> None:
+        recompute()
+        refresh_views()
+
+    refresh_all()
 
     controls = tk.Frame(window)
     controls.grid(row=1, column=0, columnspan=2, pady=(0, 12))
@@ -390,8 +486,23 @@ def _show_results(
         command=refresh_views,
     )
     restrict_toggle.pack(side="left", padx=(0, 10))
+    sync_selection_toggle = tk.Checkbutton(
+        controls,
+        text="Selección sincronizada",
+        variable=sync_selection_var,
+    )
+    sync_selection_toggle.pack(side="left", padx=(0, 10))
+    include_files_toggle = tk.Checkbutton(
+        controls,
+        text="Incluir archivos en la comparación",
+        variable=include_files_var,
+        command=refresh_all,
+    )
+    include_files_toggle.pack(side="left", padx=(0, 10))
     close_button = tk.Button(controls, text="Cerrar", width=14, command=window.destroy)
     close_button.pack(side="left")
+
+    old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
     window.grab_set()
 
@@ -439,14 +550,9 @@ def compare_json_files() -> None:
     new_computer = local_data.get("computer")
     new_path = local_data.get("selected_path")
 
-    results = _compare_structures(old_structure, new_structure)
-    old_status, new_status = _build_status_maps(results)
     _show_results(
         old_structure,
         new_structure,
-        results,
-        old_status,
-        new_status,
         old_computer,
         new_computer,
         old_path,
