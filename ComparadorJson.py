@@ -170,13 +170,13 @@ def _filter_structure_for_changes(
 
 def _filter_structure_by_paths(
     node: JsonNode | None,
-    allowed_top_folders: set[str],
+    allowed_folders: set[str],
     base_path: str = "",
     root_path: str | None = None,
 ) -> JsonNode | None:
     """Return a copy of the tree filtering only top-level folders.
 
-    Only folders whose *top-level* path exists in ``allowed_top_folders`` are
+    Only folders whose *top-level* path exists in ``allowed_folders`` are
     kept. Once a top-level folder is allowed, its entire subtree is preserved.
     Files are never filtered by this function.
     """
@@ -193,7 +193,7 @@ def _filter_structure_by_paths(
     if (
         node_type == "folder"
         and base_path == root_path
-        and current_path not in allowed_top_folders
+        and current_path not in allowed_folders
     ):
         return None
 
@@ -205,7 +205,7 @@ def _filter_structure_by_paths(
             child_type = child.get("type", "")
             if child_type == "folder":
                 filtered_child = _filter_structure_by_paths(
-                    child, allowed_top_folders, current_path, root_path
+                    child, allowed_folders, current_path, root_path
                 )
                 if filtered_child:
                     children.append(filtered_child)
@@ -347,7 +347,7 @@ def _show_results(
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
-    allowed_top_folders = _get_top_level_folders(old_structure)
+    allowed_folders = _get_top_level_folders(old_structure)
 
     filter_var = tk.BooleanVar(value=True)
     restrict_var = tk.BooleanVar(value=False)
@@ -363,7 +363,7 @@ def _show_results(
         display_new = filtered_new if show_only_changes else new_structure
 
         if restrict_to_json:
-            display_new = _filter_structure_by_paths(display_new, allowed_top_folders)
+            display_new = _filter_structure_by_paths(display_new, allowed_folders)
 
         if display_old:
             _populate_tree(old_tree, display_old, old_status)
