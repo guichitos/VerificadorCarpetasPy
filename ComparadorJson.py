@@ -289,9 +289,13 @@ def _show_results(
     current_label = new_computer or "Desconocida"
     previous_path = old_path or "Ruta no disponible"
     current_path = new_path or "Ruta no disponible"
-    old_frame = ttk.LabelFrame(window, text=f"{previous_label} - {previous_path}")
+    old_frame = ttk.LabelFrame(
+        window, text=f"Remoto - {previous_label} - {previous_path}"
+    )
     old_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-    new_frame = ttk.LabelFrame(window, text=f"{current_label} - {current_path}")
+    new_frame = ttk.LabelFrame(
+        window, text=f"Local - {current_label} - {current_path}"
+    )
     new_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
     for frame in (old_frame, new_frame):
@@ -368,7 +372,7 @@ def _show_results(
     toggle.pack(side="left", padx=(0, 10))
     restrict_toggle = tk.Checkbutton(
         controls,
-        text="Mostrar solo carpetas presentes en el JSON",
+        text="Mostrar solo carpetas presentes en remoto",
         variable=restrict_var,
         command=refresh_views,
     )
