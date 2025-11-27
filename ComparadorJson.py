@@ -10,10 +10,15 @@ from GeneradorArbol import BuildJson
 JsonNode = Dict[str, Any]
 
 
+def _compose_path(base_path: str, name: str) -> str:
+    parts = [segment for segment in (base_path, name) if segment]
+    return "/".join(parts).replace("\\", "/")
+
+
 def _collect_nodes(node: JsonNode, base_path: str = "") -> List[Tuple[str, str, str | None]]:
     """Return a flat list of (path, type, graph_path) tuples for each node."""
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     node_type = node.get("type", "")
     graph_path = node.get("graph_path")
 
@@ -142,7 +147,7 @@ def _filter_structure_for_changes(
     Ancestors of changed nodes are kept to preserve the folder context.
     """
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     status = status_map.get(current_path, "Sin cambios")
 
     children: list[JsonNode] = []
@@ -164,27 +169,39 @@ def _filter_structure_for_changes(
 
 
 def _filter_structure_by_paths(
-    node: JsonNode | None, allowed_paths: set[str], base_path: str = ""
+    node: JsonNode | None,
+    allowed_folders: set[str],
+    base_path: str = "",
 ) -> JsonNode | None:
-    """Return a copy of the tree containing only nodes whose paths are allowed."""
+    """Return a copy of the tree filtering only at the folder level.
+
+    Only folders present in ``allowed_folders`` are kept. Files inside allowed
+    folders are preserved even if they were not present in the original JSON.
+    """
 
     if not node:
         return None
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
-    if current_path not in allowed_paths:
+    current_path = _compose_path(base_path, node.get("name", ""))
+    node_type = node.get("type", "")
+
+    if node_type == "folder" and current_path not in allowed_folders:
         return None
 
-    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node.get("type", "")}
+    filtered_node: JsonNode = {"name": node.get("name", ""), "type": node_type}
 
-    if node.get("type") == "folder":
+    if node_type == "folder":
         children: list[JsonNode] = []
         for child in node.get("children", []):
-            filtered_child = _filter_structure_by_paths(child, allowed_paths, current_path)
+            filtered_child = _filter_structure_by_paths(
+                child, allowed_folders, current_path
+            )
             if filtered_child:
                 children.append(filtered_child)
         if children:
             filtered_node["children"] = children
+    elif base_path not in allowed_folders:
+        return None
 
     return filtered_node
 
@@ -200,16 +217,17 @@ def _populate_tree(
     if not node:
         return
 
-    current_path = os.path.join(base_path, node.get("name", "")) if base_path else node.get("name", "")
+    current_path = _compose_path(base_path, node.get("name", ""))
     status = status_map.get(current_path, "Sin cambios")
     node_type = node.get("type", "")
+    display_type = "Carpeta" if node_type == "folder" else "Archivo" if node_type == "file" else node_type
     tag = _status_to_tag(status)
 
     item_id = tree.insert(
         parent,
         "end",
         text=node.get("name", ""),
-        values=(status, node_type),
+        values=(status, display_type),
         tags=(tag,),
     )
 
@@ -272,16 +290,22 @@ def _show_results(
     old_tree.grid(row=0, column=0, sticky="nsew")
     new_tree.grid(row=0, column=0, sticky="nsew")
 
-    old_scroll = ttk.Scrollbar(old_frame, orient="vertical", command=old_tree.yview)
-    new_scroll = ttk.Scrollbar(new_frame, orient="vertical", command=new_tree.yview)
-    old_tree.configure(yscrollcommand=old_scroll.set)
-    new_tree.configure(yscrollcommand=new_scroll.set)
-    old_scroll.grid(row=0, column=1, sticky="ns")
-    new_scroll.grid(row=0, column=1, sticky="ns")
+    old_vscroll = ttk.Scrollbar(old_frame, orient="vertical", command=old_tree.yview)
+    new_vscroll = ttk.Scrollbar(new_frame, orient="vertical", command=new_tree.yview)
+    old_hscroll = ttk.Scrollbar(old_frame, orient="horizontal", command=old_tree.xview)
+    new_hscroll = ttk.Scrollbar(new_frame, orient="horizontal", command=new_tree.xview)
+
+    old_tree.configure(yscrollcommand=old_vscroll.set, xscrollcommand=old_hscroll.set)
+    new_tree.configure(yscrollcommand=new_vscroll.set, xscrollcommand=new_hscroll.set)
+
+    old_vscroll.grid(row=0, column=1, sticky="ns")
+    new_vscroll.grid(row=0, column=1, sticky="ns")
+    old_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
+    new_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
-    allowed_new_paths = {path for path, _, _ in results.get("old_nodes", [])}
+    allowed_new_folders = {path for path, ntype, _ in results.get("old_nodes", []) if ntype == "folder"}
 
     filter_var = tk.BooleanVar(value=True)
     restrict_var = tk.BooleanVar(value=False)
@@ -297,7 +321,7 @@ def _show_results(
         display_new = filtered_new if show_only_changes else new_structure
 
         if restrict_to_json:
-            display_new = _filter_structure_by_paths(display_new, allowed_new_paths)
+            display_new = _filter_structure_by_paths(display_new, allowed_new_folders)
 
         if display_old:
             _populate_tree(old_tree, display_old, old_status)
