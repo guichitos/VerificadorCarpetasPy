@@ -273,12 +273,18 @@ def _show_results(
     old_tree.grid(row=0, column=0, sticky="nsew")
     new_tree.grid(row=0, column=0, sticky="nsew")
 
-    old_scroll = ttk.Scrollbar(old_frame, orient="vertical", command=old_tree.yview)
-    new_scroll = ttk.Scrollbar(new_frame, orient="vertical", command=new_tree.yview)
-    old_tree.configure(yscrollcommand=old_scroll.set)
-    new_tree.configure(yscrollcommand=new_scroll.set)
-    old_scroll.grid(row=0, column=1, sticky="ns")
-    new_scroll.grid(row=0, column=1, sticky="ns")
+    old_vscroll = ttk.Scrollbar(old_frame, orient="vertical", command=old_tree.yview)
+    new_vscroll = ttk.Scrollbar(new_frame, orient="vertical", command=new_tree.yview)
+    old_hscroll = ttk.Scrollbar(old_frame, orient="horizontal", command=old_tree.xview)
+    new_hscroll = ttk.Scrollbar(new_frame, orient="horizontal", command=new_tree.xview)
+
+    old_tree.configure(yscrollcommand=old_vscroll.set, xscrollcommand=old_hscroll.set)
+    new_tree.configure(yscrollcommand=new_vscroll.set, xscrollcommand=new_hscroll.set)
+
+    old_vscroll.grid(row=0, column=1, sticky="ns")
+    new_vscroll.grid(row=0, column=1, sticky="ns")
+    old_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
+    new_hscroll.grid(row=1, column=0, columnspan=2, sticky="ew")
 
     filtered_old = _filter_structure_for_changes(old_structure, old_status)
     filtered_new = _filter_structure_for_changes(new_structure, new_status)
