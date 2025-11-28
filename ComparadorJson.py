@@ -421,8 +421,25 @@ def _show_results(
     def reload_local_structure() -> bool:
         nonlocal new_structure, new_computer, new_path
 
+        if not old_path:
+            messagebox.showerror(
+                "Error",
+                "No se puede regenerar la estructura local porque la ruta remota no está disponible.",
+            )
+            return False
+
+        if not os.path.isdir(old_path):
+            messagebox.showerror(
+                "Error",
+                "La ruta remota ya no existe en el disco. Selecciona un JSON válido nuevamente.",
+            )
+            return False
+
+        base_path = old_path
+        assert base_path is not None
+
         try:
-            local_snapshot = BuildJson(old_path)
+            local_snapshot = BuildJson(base_path)
         except OSError as error:
             messagebox.showerror(
                 "Error",
