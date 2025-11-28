@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple
 
-from GeneradorArbol import BuildJson
+from GeneradorArbol import BuildJson, EXCLUDED_NAMES
 
 
 JsonNode = Dict[str, Any]
@@ -42,6 +42,36 @@ def _load_json(path: str) -> tuple[JsonNode, str | None, str | None]:
     computer = data.get("computer") if isinstance(data, dict) else None
     selected_path = data.get("selected_path") if isinstance(data, dict) else None
     return structure, computer, selected_path
+
+
+def _prune_exclusions(node: JsonNode | None, excluded: set[str] | None = None) -> JsonNode | None:
+    if not node:
+        return None
+
+    exclusions = excluded or set()
+    node_name = node.get("name", "")
+    if node_name in exclusions:
+        return None
+
+    node_type = node.get("type", "")
+    filtered: JsonNode = {
+        "name": node_name,
+        "type": node_type,
+    }
+
+    if "graph_path" in node:
+        filtered["graph_path"] = node.get("graph_path")
+
+    if node_type == "folder":
+        children: list[JsonNode] = []
+        for child in node.get("children", []):
+            pruned_child = _prune_exclusions(child, exclusions)
+            if pruned_child:
+                children.append(pruned_child)
+        if children:
+            filtered["children"] = children
+
+    return filtered
 
 
 def _compare_structures(
@@ -382,6 +412,10 @@ def _show_results(
     sync_selection_var = tk.BooleanVar(value=False)
 
     comparison_state: dict[str, Any] = {}
+    exclusions = set(EXCLUDED_NAMES)
+    old_structure = _prune_exclusions(old_structure, exclusions) or {}
+    new_structure = _prune_exclusions(new_structure, exclusions) or {}
+
     allowed_folders = _get_top_level_folders(old_structure)
 
     def reload_local_structure() -> bool:
@@ -396,7 +430,9 @@ def _show_results(
             )
             return False
 
-        new_structure = local_snapshot.get("structure", {})
+        new_structure = _prune_exclusions(
+            local_snapshot.get("structure", {}), exclusions
+        ) or {}
         new_computer = local_snapshot.get("computer")
         new_path = local_snapshot.get("selected_path")
         return True
