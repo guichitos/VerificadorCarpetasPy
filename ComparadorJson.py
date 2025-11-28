@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -500,6 +502,27 @@ def _show_results(
             f"Se creó el archivo de diferencias:\n{destination}",
         )
 
+    def open_main_folder() -> None:
+        if not old_path or not os.path.isdir(old_path):
+            messagebox.showerror(
+                "Ruta no disponible",
+                "No se puede abrir la carpeta principal porque la ruta es inválida",
+            )
+            return
+
+        try:
+            if os.name == "nt":
+                os.startfile(old_path)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", old_path])
+            else:
+                subprocess.Popen(["xdg-open", old_path])
+        except OSError as error:
+            messagebox.showerror(
+                "Error al abrir",
+                f"No se pudo abrir la carpeta seleccionada: {error}",
+            )
+
     refresh_all()
 
     controls = tk.Frame(window)
@@ -552,12 +575,18 @@ def _show_results(
     )
     generate_button.pack(fill="x", padx=10, pady=(8, 4))
 
+    open_folder_button = tk.Button(
+        operations_frame,
+        text="Abrir carpeta principal",
+        width=28,
+        command=open_main_folder,
+    )
+    open_folder_button.pack(fill="x", padx=10, pady=4)
+
     close_button = tk.Button(
         operations_frame, text="Cerrar", width=28, command=window.destroy
     )
     close_button.pack(fill="x", padx=10, pady=(4, 8))
-
-    old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
     old_tree.bind("<<TreeviewSelect>>", _sync_selection)
 
