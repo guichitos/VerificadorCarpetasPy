@@ -567,13 +567,21 @@ def _show_results(
     )
     include_files_toggle.pack(fill="x", padx=10, pady=(2, 8))
 
+    refresh_button = tk.Button(
+        operations_frame,
+        text="Actualizar",
+        width=28,
+        command=refresh_all,
+    )
+    refresh_button.pack(fill="x", padx=10, pady=(8, 4))
+
     generate_button = tk.Button(
         operations_frame,
         text="Generar informe de diferencias",
         width=28,
         command=generate_report,
     )
-    generate_button.pack(fill="x", padx=10, pady=(8, 4))
+    generate_button.pack(fill="x", padx=10, pady=4)
 
     open_folder_button = tk.Button(
         operations_frame,
