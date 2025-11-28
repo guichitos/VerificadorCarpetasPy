@@ -7,6 +7,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 
+EXCLUDED_NAMES = [".git"]
+
+
 def GetTree(TargetPath: str, RootPath: str, DriveId: str | None) -> dict:
     """Build a dictionary representing the directory tree."""
 
@@ -21,10 +24,13 @@ def GetTree(TargetPath: str, RootPath: str, DriveId: str | None) -> dict:
         GraphPath = f"drives/{DriveId}/root:/{NormalizedRelative}" if NormalizedRelative else f"drives/{DriveId}/root"
 
     if os.path.isdir(TargetPath):
-        Children = [
-            GetTree(os.path.join(TargetPath, EntryName), RootPath, DriveId)
-            for EntryName in sorted(os.listdir(TargetPath))
-        ]
+        Children = []
+        for EntryName in sorted(os.listdir(TargetPath)):
+            if EntryName in EXCLUDED_NAMES:
+                continue
+            Children.append(
+                GetTree(os.path.join(TargetPath, EntryName), RootPath, DriveId)
+            )
         return {
             "name": NodeName,
             "type": "folder",
