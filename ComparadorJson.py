@@ -384,6 +384,23 @@ def _show_results(
     comparison_state: dict[str, Any] = {}
     allowed_folders = _get_top_level_folders(old_structure)
 
+    def reload_local_structure() -> bool:
+        nonlocal new_structure, new_computer, new_path
+
+        try:
+            local_snapshot = BuildJson(old_path)
+        except OSError as error:
+            messagebox.showerror(
+                "Error",
+                f"No se pudo regenerar la estructura local: {error}",
+            )
+            return False
+
+        new_structure = local_snapshot.get("structure", {})
+        new_computer = local_snapshot.get("computer")
+        new_path = local_snapshot.get("selected_path")
+        return True
+
     def recompute() -> None:
         include_files = include_files_var.get()
 
@@ -468,7 +485,10 @@ def _show_results(
             fallback = new_tree.get_children()[0]
             _expand_and_select(new_tree, fallback)
 
-    def refresh_all() -> None:
+    def refresh_all(from_button: bool = False) -> None:
+        if from_button and not reload_local_structure():
+            return
+
         recompute()
         refresh_views()
 
@@ -571,7 +591,7 @@ def _show_results(
         operations_frame,
         text="Actualizar",
         width=28,
-        command=refresh_all,
+        command=lambda: refresh_all(True),
     )
     refresh_button.pack(fill="x", padx=10, pady=(8, 4))
 
